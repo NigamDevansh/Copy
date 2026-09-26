@@ -141,6 +141,10 @@ final class AppCoordinator {
                     viewModel.previewShown = false
                 } else if !viewModel.searchQuery.isEmpty {
                     viewModel.clearSearch()
+                } else if viewModel.isSearchFieldFocused {
+                    // Leave the empty search field (hiding its hint panel) before a
+                    // second Escape closes the shelf.
+                    viewModel.endSearchEditingRequested = true
                 } else {
                     controller.hide(restoreFocus: true)
                 }

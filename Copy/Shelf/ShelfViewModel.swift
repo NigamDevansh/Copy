@@ -51,6 +51,10 @@ final class ShelfViewModel {
     /// Set by the key handler to ask `ShelfHeader` to move focus into the search field;
     /// the view flips it back to false after applying.
     var focusSearchRequested = false
+    /// The reverse of `focusSearchRequested`: asks `ShelfHeader` to take focus out of the
+    /// empty search field, which hides the search hint panel. Set by a card click and by
+    /// Escape; the view flips it back to false after applying.
+    var endSearchEditingRequested = false
     /// Distinct history apps for app suggestions, loaded once per search session and
     /// cleared in `clearTransientState`.
     @ObservationIgnored private var cachedApps: [AppUsage] = []
@@ -372,6 +376,7 @@ final class ShelfViewModel {
         cachedApps = []
         isSearchFieldFocused = false
         focusSearchRequested = false
+        endSearchEditingRequested = false
     }
 
     /// Called by `AppCoordinator.toggleShelf()` right before showing the panel — see
@@ -386,6 +391,11 @@ final class ShelfViewModel {
     /// behavior) or just selects, leaving the paste to `handleCardDoubleClick`/⏎ — see
     /// that setting's doc comment in `SettingsStore`.
     func handleCardClick(_ item: ClipItem, modifiers: NSEvent.ModifierFlags) {
+        // Clicking a card means browsing, so leave an empty search field; otherwise its
+        // hint panel stays over the cards until the shelf closes.
+        if isSearchFieldFocused, searchQuery.text.isEmpty {
+            endSearchEditingRequested = true
+        }
         if modifiers.contains(.shift) {
             selection.shiftClick(item.uuid, in: items.map(\.uuid))
         } else if modifiers.contains(.command) {
