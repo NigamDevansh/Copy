@@ -309,6 +309,13 @@ struct PinboardEditPopover: View {
         .padding(14)
         .frame(width: 280)
         .onAppear { nameFocused = true }
+        // The custom-color well opens the app-wide shared color panel, which would
+        // otherwise stay on screen, disconnected, after the popover closes.
+        .onDisappear {
+            if NSColorPanel.sharedColorPanelExists {
+                NSColorPanel.shared.orderOut(nil)
+            }
+        }
     }
 
     /// The preset color dots, shared by both color-row layouts in `body`.

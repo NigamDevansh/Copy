@@ -33,5 +33,12 @@ struct ColorAdjustSheet: View {
         }
         .padding(16)
         .frame(width: 260, height: 106)
+        // The color well opens the app-wide shared color panel, which would otherwise
+        // stay on screen, disconnected, after the sheet closes.
+        .onDisappear {
+            if NSColorPanel.sharedColorPanelExists {
+                NSColorPanel.shared.orderOut(nil)
+            }
+        }
     }
 }
