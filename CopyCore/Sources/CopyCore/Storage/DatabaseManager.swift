@@ -5,10 +5,18 @@ public final class DatabaseManager {
     public let writer: any DatabaseWriter
     public let blobsDirectory: URL
 
+    /// Debug builds keep their own history under `Copy-Dev`, so a development build
+    /// (and any migration it adds) never touches the installed release's database.
+    #if DEBUG
+    public static let defaultDirectoryName = "Copy-Dev"
+    #else
+    public static let defaultDirectoryName = "Copy"
+    #endif
+
     public static func makeDefault() throws -> DatabaseManager {
         let appSupport = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Copy", isDirectory: true)
+            .appendingPathComponent(defaultDirectoryName, isDirectory: true)
         return try DatabaseManager(directory: appSupport)
     }
 

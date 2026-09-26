@@ -470,12 +470,13 @@ final class AppCoordinator {
         scheduleRetentionTimer()
     }
 
-    /// Isolated, reset-every-launch demo database beside the real `Copy/copy.sqlite`, so
+    /// Isolated, reset-every-launch demo database beside the default `copy.sqlite`, so
     /// `--demo` never touches real history.
     private static func makeDemoDatabase() throws -> DatabaseManager {
         let demoDir = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Copy/DemoData", isDirectory: true)
+            .appendingPathComponent(DatabaseManager.defaultDirectoryName, isDirectory: true)
+            .appendingPathComponent("DemoData", isDirectory: true)
         try? FileManager.default.removeItem(at: demoDir)
         return try DatabaseManager(directory: demoDir)
     }
