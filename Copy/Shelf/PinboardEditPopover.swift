@@ -254,27 +254,47 @@ struct PinboardEditPopover: View {
                 .frame(height: 168)
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Color")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                HStack(spacing: 5) {
-                    ForEach(Self.colorOptions, id: \.hex) { option in
-                        ColorSwatch(name: option.name, hex: option.hex, isSelected: option.hex == tint) {
-                            tint = option.hex
-                        }
+            if #available(macOS 26, *) {
+                // From macOS 26 the system color well is a wide pill that no longer fits a
+                // 22pt slot and spills over the Graphite swatch, so it moves up beside the
+                // "Color" label at its natural size, where it can't cover (or take clicks
+                // from) the presets.
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Color")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("Custom")
+                            .font(.caption)
+                            .foregroundStyle(isCustomTint ? Color.accentColor : .secondary)
+                        ColorPicker("", selection: customColorBinding, supportsOpacity: false)
+                            .labelsHidden()
+                            .help("Custom color")
                     }
-                    // Custom color: the system picker, selected when the tint isn't a preset.
-                    ColorPicker("", selection: customColorBinding, supportsOpacity: false)
-                        .labelsHidden()
-                        .frame(width: 22, height: 22)
-                        .help("Custom color")
-                        .overlay(
-                            Circle()
-                                .strokeBorder(Color.accentColor, lineWidth: 2)
-                                .padding(-2)
-                                .opacity(isCustomTint ? 1 : 0)
-                        )
+                    HStack(spacing: 5) {
+                        presetSwatches
+                    }
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Color")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    HStack(spacing: 5) {
+                        presetSwatches
+                        // Custom color: the system picker, selected when the tint isn't a preset.
+                        ColorPicker("", selection: customColorBinding, supportsOpacity: false)
+                            .labelsHidden()
+                            .frame(width: 22, height: 22)
+                            .help("Custom color")
+                            .overlay(
+                                Circle()
+                                    .strokeBorder(Color.accentColor, lineWidth: 2)
+                                    .padding(-2)
+                                    .opacity(isCustomTint ? 1 : 0)
+                            )
+                    }
                 }
             }
 
@@ -289,6 +309,15 @@ struct PinboardEditPopover: View {
         .padding(14)
         .frame(width: 280)
         .onAppear { nameFocused = true }
+    }
+
+    /// The preset color dots, shared by both color-row layouts in `body`.
+    private var presetSwatches: some View {
+        ForEach(Self.colorOptions, id: \.hex) { option in
+            ColorSwatch(name: option.name, hex: option.hex, isSelected: option.hex == tint) {
+                tint = option.hex
+            }
+        }
     }
 
     /// True when the current tint isn't one of the presets — i.e. a custom color.
