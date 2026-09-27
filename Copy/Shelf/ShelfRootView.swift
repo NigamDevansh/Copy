@@ -181,6 +181,12 @@ private struct ShelfHeader: View {
         // sync with the field's focus, and honor a focus request from the key handler
         // (type-to-search).
         .onChange(of: searchFocused) { _, focused in viewModel.isSearchFieldFocused = focused }
+        .onChange(of: viewModel.endSearchEditingRequested) { _, requested in
+            if requested {
+                searchFocused = false
+                viewModel.endSearchEditingRequested = false
+            }
+        }
         .onChange(of: viewModel.focusSearchRequested) { _, requested in
             if requested {
                 searchFocused = true
