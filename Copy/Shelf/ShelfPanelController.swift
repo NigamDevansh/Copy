@@ -64,6 +64,9 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
     var onFlagsChanged: ((NSEvent) -> Void)?
     /// Called once when a force-click (pressure stage 2) begins over the shelf.
     var onForceClick: (() -> Void)?
+    /// Called on a mouse-down in the shelf that lands outside the text field currently
+    /// being edited (or anywhere, when none is), so the owner can end search editing.
+    var onClickOutsideTextField: (() -> Void)?
     private var lastPressureStage = 0
     var onDidHide: (() -> Void)?
 
@@ -297,7 +300,7 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
 
     private func installKeyMonitor() {
         guard keyMonitor == nil else { return }
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged, .pressure]) { [weak self] event in
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged, .pressure, .leftMouseDown]) { [weak self] event in
             guard let self, self.isVisible else { return event }
             switch event.type {
             case .keyDown:
@@ -313,10 +316,25 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
                 }
                 self.lastPressureStage = event.stage
                 return event
+            case .leftMouseDown:
+                // Observe only: the click still reaches whatever was under the pointer.
+                if event.window === self.panel, !self.isInFocusedTextField(event) {
+                    self.onClickOutsideTextField?()
+                }
+                return event
             default:
                 return event
             }
         }
+    }
+
+    /// Whether `event` lands inside the text field that is being edited. An editing
+    /// `NSTextField` hands its text to the window's field editor, whose delegate is the
+    /// field itself.
+    private func isInFocusedTextField(_ event: NSEvent) -> Bool {
+        guard let editor = panel?.firstResponder as? NSTextView, editor.isFieldEditor,
+              let field = editor.delegate as? NSView else { return false }
+        return field.bounds.contains(field.convert(event.locationInWindow, from: nil))
     }
 
     private func removeKeyMonitor() {

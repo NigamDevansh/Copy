@@ -335,6 +335,14 @@ final class AppCoordinator {
             self?.shelfViewModel.commandHeld = event.modifierFlags.contains(.command)
             self?.shelfViewModel.optionHeld = event.modifierFlags.contains(.option)
         }
+        // Clicking anywhere in the shelf outside an empty search field (a card, a tab,
+        // empty space) leaves the field, which hides its hint panel.
+        controller.onClickOutsideTextField = { [weak self] in
+            guard let viewModel = self?.shelfViewModel,
+                  viewModel.isSearchFieldFocused,
+                  viewModel.searchQuery.text.isEmpty else { return }
+            viewModel.endSearchEditingRequested = true
+        }
         controller.onForceClick = { [weak self] in
             // Force-click acts on the card under the cursor: editable kinds (text/rich
             // text/link) open the editor, everything else opens the preview. The click's
