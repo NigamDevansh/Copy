@@ -53,8 +53,8 @@ final class ShelfViewModel {
     var focusSearchRequested = false
     /// The reverse of `focusSearchRequested`: asks `ShelfHeader` to take focus out of the
     /// empty search field, which hides the search hint panel. Set by a click outside the
-    /// field (`ShelfPanelController.onClickOutsideTextField`) and by Escape; the view
-    /// flips it back to false after applying.
+    /// field (`ShelfPanelController.onClickOutsideTextField`); the view flips it back to
+    /// false after applying.
     var endSearchEditingRequested = false
     /// Distinct history apps for app suggestions, loaded once per search session and
     /// cleared in `clearTransientState`.
