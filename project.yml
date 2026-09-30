@@ -63,3 +63,8 @@ targets:
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: P7V47BUA2B
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      configs:
+        # Debug builds get their own identity (settings, Accessibility grant) so they
+        # can run beside an installed release. Release keeps com.tarikbc.Copy.
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.tarikbc.Copy.dev
