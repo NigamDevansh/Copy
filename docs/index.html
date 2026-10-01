@@ -11,12 +11,15 @@
   <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
   <link rel="preload" href="assets/fonts/sora-800.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="assets/fonts/jetbrainsmono-500.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/img/showcase-poster-web.jpg" as="image">
   <link rel="stylesheet" href="assets/css/style.css">
   <meta property="og:type" content="website">
   <meta property="og:title" content="Copy: a visual clipboard for macOS">
   <meta property="og:description" content="Everything you copy, one shortcut away. A free, open-source clipboard shelf for macOS.">
   <meta property="og:url" content="https://tarikbc.github.io/Copy/">
   <meta property="og:image" content="https://tarikbc.github.io/Copy/assets/img/og-image.jpg">
+  <meta property="og:video" content="https://tarikbc.github.io/Copy/assets/video/copy-showcase.mp4">
+  <meta property="og:video:type" content="video/mp4">
   <meta name="twitter:card" content="summary_large_image">
 </head>
 <body>
@@ -43,78 +46,52 @@
     </div>
   </header>
 
-  <!-- Hero -->
+    <!-- Hero -->
   <main id="top">
   <section class="hero">
     <div class="wrap">
       <div class="hero-copy">
-        <span class="eyebrow"><span class="num">//</span> Clipboard manager for macOS</span>
-        <h1>Everything you copy,<br><span class="accent">one shortcut away.</span></h1>
+        <h1>A visual shelf for<br><span class="accent">everything you copy.</span></h1>
         <p class="lead">Press <span class="kbd">⇧⌘V</span> and a shelf of everything you've copied slides up from the bottom of the screen. Search it, pin it, and paste it back with one keystroke.</p>
         <div class="hero-actions">
           <a class="btn btn-primary" href="https://github.com/tarikbc/Copy/releases/download/v0.2.0/Copy-0.2.0.dmg" data-dmg-download>Get Copy, free</a>
           <div class="cmd"><span class="dollar">$</span> brew install --cask tarikbc/tap/copy <button data-copy="brew install --cask tarikbc/tap/copy">Copy</button></div>
         </div>
-        <div class="free-pill">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 8 3.2 3.2L13 4.5"/></svg>
-          100% free and open source
-        </div>
         <div class="hero-meta">
-          <span>GPL-3.0</span><span class="dot">&bull;</span>
+          <span>Free and open source, GPL-3.0</span><span class="dot">&bull;</span>
           <span>No account, no telemetry</span><span class="dot">&bull;</span>
-          <span>macOS 14+</span><span class="dot">&bull;</span>
-          <a href="https://github.com/tarikbc/Copy">View source</a>
+          <span>macOS 14 or later</span>
         </div>
       </div>
 
-      <div class="hero-visual">
-        <div class="scene" data-tilt>
-          <div class="shelf" role="img" aria-label="The Copy shelf: pinboard tabs, a search field, and a row of clipboard cards, one selected.">
-            <div class="shelf-top">
-              <div class="tabs">
-                <span class="tab on">History</span>
-                <span class="tab"><span class="swatch" style="background:#34c759"></span> Work</span>
-                <span class="tab">🎨 Design</span>
-              </div>
-              <span class="search">
-                <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="5"/><path d="m11 11 3 3"/></svg>
-                Search
-              </span>
-            </div>
-            <div class="shelf-rule"></div>
-            <div class="cards">
-              <div class="card">
-                <div class="card-h"><span class="app xcode"></span> Xcode <span class="time">now</span></div>
-                <div class="card-rule"></div>
-                <div class="card-body"><span class="tok-key">func</span> <span class="tok-type">paste</span>() {<br>&nbsp;&nbsp;<span class="tok-key">let</span> item = next<br>}</div>
-              </div>
-              <div class="card sel">
-                <div class="card-h"><span class="app safari"></span> Safari <span class="time">2m</span> <span class="star">★</span></div>
-                <div class="card-rule"></div>
-                <div class="card-title">Release notes</div>
-                <div class="card-body">v0.1.0 shipping the<br>visual shelf, pinboards…</div>
-              </div>
-              <div class="card">
-                <div class="card-h"><span class="app finder"></span> Finder <span class="time">5m</span></div>
-                <div class="card-rule"></div>
-                <div class="thumb"></div>
-              </div>
-              <div class="card">
-                <div class="card-h"><span class="app safari"></span> Safari <span class="time">8m</span></div>
-                <div class="card-rule"></div>
-                <div class="link-row"><span class="fav"></span> pasteapp.io</div>
-                <div class="card-body">The visual clipboard…</div>
-              </div>
-              <div class="card">
-                <div class="card-h"><span class="app"></span> System <span class="time">12m</span></div>
-                <div class="card-rule"></div>
-                <div class="swatch-lg" style="background:#4C9DFF"></div>
-                <div class="card-body">#4C9DFF</div>
-              </div>
-            </div>
+      <figure class="demo" data-demo>
+        <div class="demo-frame">
+          <video class="demo-video" muted loop playsinline preload="metadata" poster="assets/img/showcase-poster-web.jpg" aria-label="A one minute tour of Copy: the shelf, smart search, pinboards, the paste stack, smart cards, and the light and dark appearance.">
+            <source src="assets/video/copy-showcase-web.mp4" type="video/mp4">
+          </video>
+          <button class="demo-play" type="button" data-demo-play aria-label="Play the demo" hidden>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>
+            Play the demo
+          </button>
+          <div class="demo-bar">
+            <button class="demo-sound" type="button" data-demo-sound aria-pressed="false">
+              <svg class="ic-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m22 9-6 6M16 9l6 6"/></svg>
+              <svg class="ic-sound" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+              <span data-demo-sound-label>Sound off</span>
+            </button>
+            <a class="demo-full" href="assets/video/copy-showcase.mp4">Open in full quality</a>
           </div>
         </div>
-      </div>
+        <figcaption>One minute, every feature. Rebuilt as motion graphics from the real app's layout.</figcaption>
+      </figure>
+
+      <ul class="whats-new" aria-label="New in version 0.2.0">
+        <li><span class="tag">New in 0.2.0</span></li>
+        <li>Light, dark, or system appearance</li>
+        <li>A floating shelf style</li>
+        <li>Haptic feedback on the trackpad</li>
+        <li><a href="https://github.com/tarikbc/Copy/blob/main/CHANGELOG.md">Read the changelog</a></li>
+      </ul>
     </div>
   </section>
 
@@ -122,19 +99,18 @@
   <section class="section" id="shelf">
     <div class="wrap">
       <div class="section-head">
-        <span class="eyebrow"><span class="num">01</span> The shelf</span>
         <h2>Your clipboard history, laid out like cards.</h2>
         <p>Every copy becomes a card the moment you make it. Text, images, links, files, and colors are all captured automatically, newest first and instantly searchable. No more losing what you copied two things ago.</p>
       </div>
+
       <div class="feature">
         <div class="feature-copy">
-          <span class="eyebrow"><span class="num">→</span> Smart search</span>
           <h3>Filter by app, type, and time. Then type.</h3>
           <p>Start typing and Copy suggests the app you copied from, the kind of thing, a time range, favorites, or a pinboard. Pick a few and they stack as filters. Whatever you type after searches the content, including text recognized inside images.</p>
           <ul>
             <li>Filter tokens: app, type, time, favorites, pinboards</li>
             <li>On-device OCR makes text inside images searchable</li>
-            <li>Right-click a result → Show in History to jump back to it</li>
+            <li>Right-click a result and choose Show in History to jump back to it</li>
           </ul>
         </div>
         <div class="feature-visual">
@@ -142,15 +118,15 @@
             <div class="token-field">
               <svg class="mag" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="7" cy="7" r="5"/><path d="m11 11 3 3"/></svg>
               <span class="pill"><span class="ic safari"></span> Safari</span>
-              <span class="typed">l</span><span class="caret"></span>
+              <span class="typed">in</span><span class="caret"></span>
             </div>
             <div class="suggest">
               <div class="row on">
-                <svg class="ic" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6.5 9.5a2.6 2.6 0 0 0 3.7 0l2-2a2.6 2.6 0 0 0-3.7-3.7l-.7.7"/><path d="M9.5 6.5a2.6 2.6 0 0 0-3.7 0l-2 2a2.6 2.6 0 0 0 3.7 3.7l.7-.7"/></svg>
-                Link
+                <svg class="ic" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="m4 11 3-3 2 2 3-4"/></svg>
+                Images
               </div>
-              <div class="row"><span class="ic" style="background:linear-gradient(135deg,#111,#333)"></span> Linear</div>
               <div class="row"><svg class="ic" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="3.5" width="11" height="10" rx="1.5"/><path d="M2.5 6.5h11M5.5 2.5v2M10.5 2.5v2"/></svg> Last week</div>
+              <div class="row"><span class="ic" style="background:linear-gradient(135deg,#111,#333)"></span> Linear</div>
             </div>
           </div>
         </div>
@@ -158,22 +134,73 @@
 
       <div class="feature flip">
         <div class="feature-copy">
-          <span class="eyebrow"><span class="num">→</span> Pinboards &amp; paste stack</span>
           <h3>Keep the good stuff. Paste in sequence.</h3>
-          <p>Drag a card into a pinboard to keep it around, colour-coded and emoji-tagged. Building something repetitive? Queue several cards in the paste stack and walk through them on successive pastes.</p>
+          <p>Drag a card toward the tabs and a small callout names the pinboard it will land in. Drop it, and the board opens with the card filed. Building something repetitive? Queue several cards in the paste stack and walk through them on successive pastes.</p>
           <ul>
-            <li>Pinboards with colours and any emoji</li>
+            <li>Pinboards with colors and any emoji; drag tabs to reorder them</li>
+            <li>Favorites keep starred cards at the front, or switch them off</li>
             <li>Paste stack: a numbered queue, next item marked</li>
-            <li>Switch boards with ⌘1 through ⌘9</li>
           </ul>
         </div>
-        <div class="feature-visual" style="display:flex;justify-content:center">
-          <div class="glass-panel stack">
-            <div class="stack-h">Paste Stack <span class="count">3</span></div>
-            <div class="stack-row next"><span class="n">1</span><span class="txt">github.com/tarikbc/Copy</span><span class="badge">Next</span></div>
-            <div class="stack-row"><span class="n">2</span><span class="txt">git commit --amend</span></div>
-            <div class="stack-row"><span class="n">3</span><span class="txt">#4C9DFF</span></div>
+        <div class="feature-visual">
+          <div class="mock-stack">
+            <div class="glass-panel tabs-mock" aria-hidden="true">
+              <div class="tabs">
+                <span class="tab">History</span>
+                <span class="tab"><span class="swatch" style="background:#007aff"></span> Work</span>
+                <span class="tab hot">🎨 Design</span>
+                <span class="tab"><span class="swatch" style="background:#34c759"></span> Snippets</span>
+              </div>
+              <div class="callout">
+                <span class="callout-arrow"></span>
+                <span class="callout-badge">🎨</span>
+                <span class="callout-text"><small>Add to</small>Design</span>
+              </div>
+              <div class="drag-chip"><span class="app finder"></span> sunset.png</div>
+            </div>
+            <div class="glass-panel stack" aria-hidden="true">
+              <div class="stack-h">Paste Stack <span class="count">3</span></div>
+              <div class="stack-row next"><span class="n">1</span><span class="txt">brew install --cask tarikbc/tap/copy</span><span class="badge">Next</span></div>
+              <div class="stack-row"><span class="n">2</span><span class="txt">github.com/tarikbc/Copy</span></div>
+              <div class="stack-row"><span class="n">3</span><span class="txt">#4C9DFF</span></div>
+            </div>
           </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Your shelf, your way -->
+  <section class="section" id="appearance">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Your shelf, your way.</h2>
+        <p>Pick the look that fits your desk. Every choice lives under Settings, General, and the shelf changes on the spot.</p>
+      </div>
+      <div class="ways">
+        <div class="way">
+          <div class="way-mock split" aria-hidden="true">
+            <div class="mini light"><span class="mini-tab on">History</span><span class="mini-tab">Work</span><div class="mini-cards"><i></i><i></i><i></i></div></div>
+            <div class="mini dark"><span class="mini-tab on">History</span><span class="mini-tab">Work</span><div class="mini-cards"><i></i><i></i><i></i></div></div>
+          </div>
+          <h4>Light, dark, or follow the system</h4>
+          <p>The dark shelf uses Copy's electric blue and dims the glass, so cards stay readable over bright windows.</p>
+        </div>
+        <div class="way">
+          <div class="way-mock" aria-hidden="true">
+            <div class="mini dark attached"><span class="mini-tab on">History</span><span class="mini-tab">Work</span><div class="mini-cards"><i></i><i></i><i></i></div></div>
+            <div class="mini dark floating"><span class="mini-tab on">History</span><span class="mini-tab">Work</span><div class="mini-cards"><i></i><i></i><i></i></div></div>
+          </div>
+          <h4>Attached to the edge, or floating</h4>
+          <p>Edge attached is the default. Floating lifts the shelf off the bottom with space around it and rounds every corner.</p>
+        </div>
+        <div class="way">
+          <div class="way-mock" aria-hidden="true">
+            <div class="mini dark"><span class="mini-tab on">History</span><span class="mini-tab">Work</span><div class="mini-cards"><i></i><i></i><i></i></div></div>
+            <div class="mini dark compact"><span class="mini-tab on">History</span><span class="mini-tab">Work</span><div class="mini-cards"><i></i><i></i><i></i><i></i><i></i></div></div>
+          </div>
+          <h4>Standard or compact cards</h4>
+          <p>Compact fits more cards at a glance on a laptop screen. Standard gives each card room for a longer preview.</p>
         </div>
       </div>
     </div>
@@ -183,51 +210,53 @@
   <section class="section" id="power">
     <div class="wrap">
       <div class="section-head">
-        <span class="eyebrow"><span class="num">02</span> Power tools</span>
         <h2>A real editor, syntax colors, and more.</h2>
         <p>Copy is built for people who copy code, links, and text all day. Edit before you paste, see code the way you wrote it, and open links without leaving your flow.</p>
       </div>
       <div class="feature">
         <div class="feature-copy">
-          <span class="eyebrow"><span class="num">→</span> Edit &amp; highlight</span>
           <h3>Rich editing and code that looks like code.</h3>
           <p>Fix a card in place with bold, italic, underline, and strikethrough, and a live character, word, and line count. Copied source code is detected and syntax-highlighted right on the card, like Xcode.</p>
           <ul>
-            <li>Rich text editor with a live stats footer</li>
+            <li>Rich text editor with a live stats footer, and Apple Writing Tools on macOS 15</li>
             <li>On-device syntax highlighting for common languages</li>
             <li>Inline rename, two-click-to-paste, drag several out at once</li>
           </ul>
         </div>
-        <div class="feature-visual" style="display:flex;justify-content:center">
+        <div class="feature-visual" style="display:flex;justify-content:center;gap:16px;flex-wrap:wrap">
           <div class="glass-panel editor">
             <div class="toolbar"><span class="on"><b>B</b></span><span><i>I</i></span><span><u>U</u></span><span><s>S</s></span></div>
             <div class="field"><b>Release checklist</b><br>Ship the <b>visual shelf</b>, then pinboards and the paste stack.</div>
             <div class="stats">42 characters &middot; 7 words &middot; 2 lines</div>
+          </div>
+          <div class="glass-panel editor" style="width:300px">
+            <div class="card-h" style="font-size:12px;margin-bottom:8px"><span class="app xcode"></span> Xcode &middot; Swift <span class="time">now</span></div>
+            <div class="card-body" style="font-size:12px;line-height:1.7">
+              <span class="tok-key">struct</span> <span class="tok-type">Card</span> {<br>
+              &nbsp;&nbsp;<span class="tok-key">let</span> title: <span class="tok-type">String</span><br>
+              &nbsp;&nbsp;<span class="tok-key">var</span> count = <span class="tok-num">9</span><br>
+              }
+            </div>
           </div>
         </div>
       </div>
 
       <div class="feature flip">
         <div class="feature-copy">
-          <span class="eyebrow"><span class="num">→</span> Fast by keyboard</span>
-          <h3>Everything is a keystroke away.</h3>
-          <p>Summon the shelf, paste, edit, open, undo, and walk the paste stack without touching the mouse.</p>
+          <h3>It feels like part of the Mac.</h3>
+          <p>Copy is a native app, not a web view. The shelf is Liquid Glass on macOS 26 with a solid fallback before that, and the trackpad answers what you do.</p>
           <ul>
-            <li><span class="kbd">⇧⌘V</span> open the shelf &nbsp; <span class="kbd">⏎</span> paste &nbsp; <span class="kbd">⌥⏎</span> paste plain</li>
-            <li><span class="kbd">⌘R</span> rename &nbsp; <span class="kbd">⌘O</span> open link/file &nbsp; <span class="kbd">⌘Z</span> undo</li>
-            <li><span class="kbd">⇧⌘C</span> paste stack &nbsp; <span class="kbd">1</span>–<span class="kbd">9</span> quick paste</li>
+            <li>Haptic feedback: a light tap when a dragged card reaches a board or you switch tabs, a firmer click when it is filed. Optional.</li>
+            <li>Everything is a keystroke away, from summon to paste to undo</li>
+            <li>Shortcuts actions to paste your latest item, search, or paste from a pinboard</li>
           </ul>
         </div>
         <div class="feature-visual" style="display:flex;justify-content:center">
-          <div class="glass-panel editor" style="width:300px">
-            <div class="card-h" style="font-size:12px;margin-bottom:8px"><span class="app xcode"></span> Xcode &middot; Swift <span class="time">now</span></div>
-            <div class="card-body" style="font-size:12px;line-height:1.7">
-              <span class="tok-com">// syntax highlighted on the card</span><br>
-              <span class="tok-key">struct</span> <span class="tok-type">Card</span> {<br>
-              &nbsp;&nbsp;<span class="tok-key">let</span> title: <span class="tok-type">String</span><br>
-              &nbsp;&nbsp;<span class="tok-key">var</span> count = <span class="tok-num">9</span><br>
-              }
-            </div>
+          <div class="glass-panel keys" aria-hidden="true">
+            <div class="key-row"><span class="kbd">⇧⌘V</span> open the shelf</div>
+            <div class="key-row"><span class="kbd">⏎</span> paste <span class="kbd">⌥⏎</span> paste as plain text</div>
+            <div class="key-row"><span class="kbd">⌘R</span> rename <span class="kbd">⌘O</span> open link or file <span class="kbd">⌘Z</span> undo</div>
+            <div class="key-row"><span class="kbd">⇧⌘C</span> paste stack <span class="kbd">1</span>–<span class="kbd">9</span> quick paste</div>
           </div>
         </div>
       </div>
@@ -238,44 +267,24 @@
   <section class="section" id="privacy">
     <div class="wrap">
       <div class="section-head">
-        <span class="eyebrow"><span class="num">03</span> Private by design</span>
         <h2>Your clipboard never leaves your Mac.</h2>
         <p>No account, no cloud sync, nothing phoned home. Copy is local-first and open source, so you can read exactly what it does.</p>
       </div>
-      <div class="priv-grid">
-        <div class="panel priv-card">
-          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3 4 6v5c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6l-8-3Z"/></svg>
-          <h4>Local first</h4><p>Everything lives in a database on your Mac. Nothing is uploaded, ever.</p>
-        </div>
-        <div class="panel priv-card">
-          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12h18M3 6h18M3 18h18"/><circle cx="8" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="2" fill="currentColor" stroke="none"/></svg>
-          <h4>No telemetry</h4><p>No analytics, no tracking, no network calls except checking for updates.</p>
-        </div>
-        <div class="panel priv-card">
-          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7"/><path d="M5.2 10h13.6M5.2 14h13.6"/><path d="M12 5c2.6 2.3 2.6 11.7 0 14M12 5c-2.6 2.3-2.6 11.7 0 14"/><path d="m6.5 6.5 11 11"/></svg>
-          <h4>Works offline</h4><p>No internet required. Copy runs entirely on your machine.</p>
-        </div>
-        <div class="panel priv-card">
-          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
-          <h4>Passwords skipped</h4><p>Items marked concealed by password managers are never captured.</p>
-        </div>
-        <div class="panel priv-card">
-          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M4 12h16M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>
-          <h4>Per-app rules</h4><p>Exclude any app from history, and hide the shelf from screen sharing.</p>
-        </div>
-        <div class="panel priv-card">
-          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 18c-4 1-4-2-6-3m12 5v-3.5c0-1 .3-1.4-.5-2 2.3-.3 4.5-1.1 4.5-5a3.9 3.9 0 0 0-1-2.7 3.6 3.6 0 0 0-.1-2.7S16.6 4 15 5.1a12.3 12.3 0 0 0-6 0C7.4 4 6.7 4.4 6.7 4.4a3.6 3.6 0 0 0-.1 2.7A3.9 3.9 0 0 0 5.5 9.8c0 3.9 2.2 4.7 4.5 5-.6.6-.6 1.2-.5 2V20"/></svg>
-          <h4>Open source</h4><p>GPL-3.0. Read the code, build it yourself, or send a pull request.</p>
-        </div>
-      </div>
+      <dl class="priv-list">
+        <div><dt>Local first</dt><dd>Everything lives in a database on your Mac. Nothing is uploaded, ever.</dd></div>
+        <div><dt>No telemetry</dt><dd>No analytics, no tracking, no network calls except checking for updates and, if you keep it on, link previews.</dd></div>
+        <div><dt>Works offline</dt><dd>No internet required. Copy runs entirely on your machine.</dd></div>
+        <div><dt>Passwords skipped</dt><dd>Items marked concealed by password managers are never captured.</dd></div>
+        <div><dt>Per-app rules</dt><dd>Exclude any app from history, and hide the shelf from screen sharing. Private system apps are excluded by default.</dd></div>
+        <div><dt>Open source</dt><dd>GPL-3.0. Read the code, build it yourself, or send a pull request.</dd></div>
+      </dl>
     </div>
   </section>
 
-  <!-- Install -->
+<!-- Install -->
   <section class="section" id="install">
     <div class="wrap">
       <div class="section-head">
-        <span class="eyebrow"><span class="num">04</span> Install</span>
         <h2>On your Mac in a minute.</h2>
       </div>
       <div class="install-grid">
@@ -298,7 +307,6 @@
   <section class="section" id="contribute">
     <div class="wrap">
       <div class="section-head">
-        <span class="eyebrow"><span class="num">05</span> Built in the open</span>
         <h2>Copy is yours to shape.</h2>
         <p>It is a real open-source project, not a demo. Star it, file the bug that has been bugging you, or open a pull request. Good first issues are labeled, and the whole app builds from source with Xcode.</p>
       </div>
@@ -328,7 +336,6 @@
   <!-- Final CTA -->
   <section class="section cta-band">
     <div class="wrap">
-      <span class="eyebrow" style="justify-content:center"><span class="num">//</span> Get started</span>
       <h2>Give your clipboard a home.</h2>
       <div class="cta-actions">
         <a class="btn btn-primary" href="https://github.com/tarikbc/Copy/releases/download/v0.2.0/Copy-0.2.0.dmg" data-dmg-download>Get Copy, free</a>

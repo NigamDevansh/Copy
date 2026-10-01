@@ -25,46 +25,42 @@
     });
   });
 
-  // Cursor parallax: the hero shelf mock tilts toward the pointer.
-  var tilt = document.querySelector("[data-tilt]");
+  // The demo video: plays silently on its own, pauses while it is off screen, and the
+  // sound button unmutes it. Under Reduce Motion nothing autoplays; a play button shows.
+  var demo = document.querySelector("[data-demo]");
   var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (tilt && !reduce) {
-    var shelf = tilt.querySelector(".shelf");
-    tilt.addEventListener("pointermove", function (e) {
-      var r = tilt.getBoundingClientRect();
-      var px = ((e.clientX - r.left) / r.width - 0.5) * 2;   // -1 .. 1
-      var py = ((e.clientY - r.top) / r.height - 0.5) * 2;
-      shelf.style.setProperty("--px", px.toFixed(3));
-      shelf.style.setProperty("--py", py.toFixed(3));
-    });
-    tilt.addEventListener("pointerleave", function () {
-      shelf.style.setProperty("--px", "0");
-      shelf.style.setProperty("--py", "0");
-    });
-  }
-
-  // Selection travel: slowly move the highlighted card across the hero shelf so it reads
-  // like someone browsing their clipboard, not a frozen mock. Pauses when the tab is
-  // hidden or the pointer is inspecting the shelf; disabled under reduced motion.
-  var scene = document.querySelector(".hero-visual .scene");
-  var cards = scene ? Array.prototype.slice.call(scene.querySelectorAll(".card")) : [];
-  if (scene && cards.length > 1 && !reduce) {
-    var current = cards.findIndex(function (c) { return c.classList.contains("sel"); });
-    if (current < 0) { current = 0; }
-    var timer = null;
-    var advance = function () {
-      cards[current].classList.remove("sel");
-      current = (current + 1) % cards.length;
-      cards[current].classList.add("sel");
+  if (demo) {
+    var video = demo.querySelector("video");
+    var play = demo.querySelector("[data-demo-play]");
+    var sound = demo.querySelector("[data-demo-sound]");
+    var soundLabel = demo.querySelector("[data-demo-sound-label]");
+    var showPlay = function () { play.hidden = false; };
+    var hidePlay = function () { play.hidden = true; };
+    var tryPlay = function () {
+      var p = video.play();
+      if (p && p.catch) { p.catch(showPlay); }
     };
-    var start = function () { if (!timer) { timer = window.setInterval(advance, 2400); } };
-    var stop = function () { if (timer) { window.clearInterval(timer); timer = null; } };
-    document.addEventListener("visibilitychange", function () {
-      if (document.hidden) { stop(); } else { start(); }
+    if (reduce) {
+      showPlay();
+    } else {
+      tryPlay();
+    }
+    play.addEventListener("click", function () { hidePlay(); tryPlay(); });
+    video.addEventListener("play", hidePlay);
+    sound.addEventListener("click", function () {
+      video.muted = !video.muted;
+      sound.setAttribute("aria-pressed", video.muted ? "false" : "true");
+      soundLabel.textContent = video.muted ? "Sound off" : "Sound on";
+      if (!video.muted) { video.currentTime = 0; tryPlay(); }
     });
-    scene.addEventListener("pointerenter", stop);
-    scene.addEventListener("pointerleave", start);
-    window.setTimeout(start, 1700);   // let the load-in settle first
+    if ("IntersectionObserver" in window && !reduce) {
+      new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) { if (video.paused && play.hidden) { tryPlay(); } }
+          else if (!video.paused) { video.pause(); }
+        });
+      }, { threshold: 0.25 }).observe(video);
+    }
   }
 
   function fallbackCopy(text) {
