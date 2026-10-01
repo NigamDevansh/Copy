@@ -1,15 +1,18 @@
+import CopyCore
 import SwiftUI
 import UniformTypeIdentifiers
 
 /// Frames of each pinboard tab, keyed by pinboard id, in the shelf's `"shelfRoot"`
 /// coordinate space. Each `TabPill` publishes its own frame; `ShelfRootView` collects them
-/// so the shelf-level `PinboardDropDelegate` can tell which tab a drop landed on.
+/// so `ShelfHostingView` can tell which tab a drag is over.
 ///
-/// Pinboard-related drops can't be caught reliably by a per-tab `.onDrop`: inside the shelf's
-/// borderless, non-activating Liquid Glass panel, a small nested pill never establishes a
-/// working SwiftUI drop region (a `.onDrop` on the whole shelf, by contrast, fires
-/// reliably). So the shelf handles the drop once at its root and maps the drop location to
-/// a tab via these frames.
+/// Drops onto the tabs are not SwiftUI `.onDrop`s. A per-tab `.onDrop` never establishes a
+/// working drop region on the small pills inside the shelf's borderless, non-activating
+/// glass panel. A shelf-level `.onDrop` puts a full-size SwiftUI drop view over the whole
+/// shelf that claims every drag (it registers for `public.item`), so AppKit never hands a
+/// card drag to anything else, and SwiftUI stops updating a drag that starts in the card
+/// row once it crosses into the header. So the shelf's hosting view takes both drags in
+/// AppKit and maps the pointer to a tab via these frames.
 struct PinboardTabFramesKey: PreferenceKey {
     static var defaultValue: [Int64: CGRect] { [:] }
     static func reduce(value: inout [Int64: CGRect], nextValue: () -> [Int64: CGRect]) {
@@ -17,23 +20,10 @@ struct PinboardTabFramesKey: PreferenceKey {
     }
 }
 
-/// Shelf-level drop target for both card filing and pinboard reordering. Small per-tab
-/// drop targets don't work reliably in the shelf panel, so both paths resolve the tab
-/// under the pointer from the frames published by `PinboardTabFramesKey`.
-struct PinboardDropDelegate: DropDelegate {
-    /// Pinboard tab frames in the same coordinate space this delegate's `.onDrop` uses.
-    var tabFrames: () -> [Int64: CGRect]
-    /// Reports the card-filing target for the existing full-tab highlight.
-    var onFileTargetChange: (Int64?) -> Void
-    /// Reports the reorder target and whether the insertion point is after its midpoint.
-    var onReorderTargetChange: (Int64?, Bool) -> Void
-    /// Files the dragged card uuid(s) into the given pinboard.
-    var onFile: (Int64, [String]) -> Void
-    /// Moves one dragged pinboard before or after the target pinboard.
-    var onMove: (Int64, Int64, Bool) -> Void
-
-    private func pinboard(at point: CGPoint) -> Int64? {
-        let frames = tabFrames()
+/// Maps a point in the shelf's top-left coordinate space (`"shelfRoot"`, which is also the
+/// hosting view's) to the pinboard tab under it, using the frames each tab publishes.
+enum PinboardTabHitTest {
+    static func pinboard(at point: CGPoint, in frames: [Int64: CGRect]) -> Int64? {
         guard !frames.isEmpty else { return nil }
         // Exact hit first (cursor squarely inside a pill).
         if let hit = frames.first(where: { $0.value.contains(point) })?.key { return hit }
@@ -50,83 +40,179 @@ struct PinboardDropDelegate: DropDelegate {
         }
         return frames.min(by: { abs($0.value.midX - point.x) < abs($1.value.midX - point.x) })?.key
     }
+}
 
-    func validateDrop(info: DropInfo) -> Bool {
-        let hasSupportedPayload = info.hasItemsConforming(to: [UTType.copyPinboard])
-            || info.hasItemsConforming(to: [UTType.copyItem])
-        return hasSupportedPayload && pinboard(at: info.location) != nil
+/// A drag that started in the shelf, as recorded when it began.
+enum ShelfDrag {
+    /// One card, or a multi-selection's uuids in order.
+    case cards([String])
+    /// A pinboard tab being reordered.
+    case pinboard(Int64)
+
+    enum Kind { case cards, pinboard }
+
+    var kind: Kind {
+        switch self {
+        case .cards: .cards
+        case .pinboard: .pinboard
+        }
+    }
+}
+
+/// What the drop callout under the pinboard tabs shows (see `PinboardDropCalloutLayer`).
+struct PinboardDropCallout: Equatable {
+    enum Phase {
+        /// A card drag is over the tab: names the board it will be filed into.
+        case targeting
+        /// The drop landed: a short confirmation before the callout folds away.
+        case filed
     }
 
-    func dropEntered(info: DropInfo) {
-        updateTarget(for: info)
-    }
+    var pinboardID: Int64
+    /// Cards being dragged, or cards actually added once filed.
+    var count: Int
+    var phase: Phase
+    /// Tells two otherwise equal callouts apart, so a confirmation's timer only clears
+    /// the confirmation it started.
+    let token = UUID()
+}
 
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        let target = pinboard(at: info.location)
-        updateTarget(for: info)
-        let operation: DropOperation = info.hasItemsConforming(to: [UTType.copyPinboard])
-            ? .move
-            : .copy
-        return DropProposal(operation: target != nil ? operation : .cancel)
-    }
+/// The callout that pops out of the pinboard tab under a card drag, naming the board the
+/// card will land in (the tab alone is small, and the drag chip sits on top of it), then
+/// briefly confirms the drop. It glides from tab to tab as the
+/// drag moves along the row. Laid over the whole shelf in the `"shelfRoot"` space, where
+/// the tab frames are measured, so it can hang below the header over the cards.
+struct PinboardDropCalloutLayer: View {
+    let callout: PinboardDropCallout?
+    let pinboards: [Pinboard]
+    let tabFrames: [Int64: CGRect]
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    func dropExited(info: DropInfo) {
-        clearTargets()
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        guard let id = pinboard(at: info.location) else { return false }
-
-        if let provider = info.itemProviders(for: [UTType.copyPinboard]).first {
-            let placeAfterTarget = placesAfterTarget(id, at: info.location)
-            clearTargets()
-            provider.loadDataRepresentation(forTypeIdentifier: UTType.copyPinboard.identifier) { data, _ in
-                guard let data,
-                      let rawID = String(data: data, encoding: .utf8),
-                      let sourceID = Int64(rawID) else { return }
-                DispatchQueue.main.async {
-                    onMove(sourceID, id, placeAfterTarget)
-                    clearTargets()
-                }
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            Color.clear
+            if let callout,
+               let pinboard = pinboards.first(where: { $0.id == callout.pinboardID }),
+               let tab = tabFrames[callout.pinboardID] {
+                PinboardDropCalloutView(callout: callout, pinboard: pinboard,
+                                        arrowX: tab.width / 2 + Self.leadingInset)
+                    // Positioned by alignment guides, not `.offset`, so the view's real frame
+                    // sits under the tab: the pop-out transition then scales from the tab,
+                    // and moving to another tab animates as a layout change.
+                    .alignmentGuide(.leading) { _ in -(tab.minX - Self.leadingInset) }
+                    .alignmentGuide(.top) { _ in -(tab.maxY + 3) }
+                    .transition(reduceMotion
+                        ? .opacity
+                        : .scale(scale: 0.35, anchor: UnitPoint(x: 0.12, y: 0)).combined(with: .opacity))
             }
-            return true
         }
+        .allowsHitTesting(false)
+        .animation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.34, dampingFraction: 0.72),
+                   value: callout)
+    }
 
-        clearTargets()
-        guard let provider = info.itemProviders(for: [UTType.copyItem]).first else { return false }
-        provider.loadDataRepresentation(forTypeIdentifier: UTType.copyItem.identifier) { data, _ in
-            guard let data, let payload = String(data: data, encoding: .utf8) else { return }
-            let uuids = payload.split(separator: "\n").map(String.init)
-            guard !uuids.isEmpty else { return }
-            DispatchQueue.main.async {
-                onFile(id, uuids)
-                // Clear the highlight again after any trailing dropUpdated: SwiftUI doesn't
-                // call dropExited after a successful drop, so without this the filed-into
-                // tab keeps its drop border.
-                clearTargets()
+    /// How far the callout starts left of its tab, so short names still read as hanging
+    /// from the tab rather than starting exactly at its edge.
+    private static let leadingInset: CGFloat = 6
+}
+
+private struct PinboardDropCalloutView: View {
+    let callout: PinboardDropCallout
+    let pinboard: Pinboard
+    /// The arrow's x position, from the callout's leading edge.
+    let arrowX: CGFloat
+
+    private var boardColor: Color {
+        pinboard.tint.isEmpty ? .accentColor : Tokens.color(fromHex: pinboard.tint)
+    }
+
+    private var isFiled: Bool { callout.phase == .filed }
+
+    private var caption: String {
+        switch (callout.phase, callout.count) {
+        case (.targeting, 1): "Add to"
+        case (.targeting, let count): "Add \(count) items to"
+        case (.filed, 1): "Added to"
+        case (.filed, let count): "Added \(count) items to"
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            badge
+            VStack(alignment: .leading, spacing: 0) {
+                Text(caption)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Text(pinboard.name)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+            .contentTransition(.interpolate)
+        }
+        .padding(.leading, 8)
+        .padding(.trailing, 12)
+        .padding(.vertical, 6)
+        .padding(.top, CalloutShape.arrowHeight)
+        .fixedSize()
+        // Plain system material with a hairline, like a native popover: the board's color
+        // lives only in the badge, the same small dose of it the tab itself carries.
+        .background {
+            let shape = CalloutShape(arrowX: arrowX)
+            shape.fill(.regularMaterial)
+            shape.stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
+        }
+        .shadow(color: .black.opacity(0.15), radius: 8, y: 3)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// The board's emoji, else its color, in a small disc; a check once the drop lands.
+    @ViewBuilder private var badge: some View {
+        ZStack {
+            Circle().fill(boardColor.opacity(isFiled ? 0.9 : 0.22))
+            if isFiled {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
+                    .transition(.scale(scale: 0.2).combined(with: .opacity))
+            } else if let emoji = pinboard.emoji, !emoji.isEmpty {
+                Text(emoji).font(.system(size: 13))
+            } else {
+                Image(systemName: "tray.and.arrow.down.fill")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(boardColor)
             }
         }
-        return true
+        .frame(width: 24, height: 24)
+    }
+}
+
+/// A rounded bubble with a small arrow on top, pointing up at the tab.
+private struct CalloutShape: Shape {
+    static let arrowHeight: CGFloat = 6
+    private static let arrowWidth: CGFloat = 14
+    private static let cornerRadius: CGFloat = 10
+
+    var arrowX: CGFloat
+
+    var animatableData: CGFloat {
+        get { arrowX }
+        set { arrowX = newValue }
     }
 
-    private func updateTarget(for info: DropInfo) {
-        let target = pinboard(at: info.location)
-        if info.hasItemsConforming(to: [UTType.copyPinboard]) {
-            onFileTargetChange(nil)
-            onReorderTargetChange(target, target.map { placesAfterTarget($0, at: info.location) } ?? false)
-        } else {
-            onReorderTargetChange(nil, false)
-            onFileTargetChange(target)
-        }
-    }
-
-    private func placesAfterTarget(_ id: Int64, at point: CGPoint) -> Bool {
-        guard let frame = tabFrames()[id] else { return false }
-        return point.x >= frame.midX
-    }
-
-    private func clearTargets() {
-        onFileTargetChange(nil)
-        onReorderTargetChange(nil, false)
+    func path(in rect: CGRect) -> Path {
+        let body = CGRect(x: rect.minX, y: rect.minY + Self.arrowHeight,
+                          width: rect.width, height: rect.height - Self.arrowHeight)
+        let bubble = Path(roundedRect: body, cornerRadius: Self.cornerRadius, style: .continuous)
+        let halfWidth = Self.arrowWidth / 2
+        let x = min(max(rect.minX + arrowX, body.minX + Self.cornerRadius + halfWidth),
+                    body.maxX - Self.cornerRadius - halfWidth)
+        var arrow = Path()
+        arrow.move(to: CGPoint(x: x - halfWidth, y: body.minY + 1))
+        arrow.addQuadCurve(to: CGPoint(x: x, y: rect.minY), control: CGPoint(x: x - 2, y: body.minY))
+        arrow.addQuadCurve(to: CGPoint(x: x + halfWidth, y: body.minY + 1), control: CGPoint(x: x + 2, y: body.minY))
+        arrow.closeSubpath()
+        return bubble.union(arrow)
     }
 }

@@ -7,9 +7,6 @@ import UniformTypeIdentifiers
 struct ShelfRootView: View {
     @Bindable var viewModel: ShelfViewModel
     @State private var permissionBannerDismissed = false
-    /// Pinboard tab frames (id → frame in the "shelfRoot" space), published by each tab and
-    /// consumed by the shelf-level `PinboardDropDelegate` to route a drop to the right tab.
-    @State private var pinboardTabFrames: [Int64: CGRect] = [:]
     /// Persisted so the keyboard legend, once dismissed, stays gone. Read once here;
     /// `dismissLegend()` writes it back. Defaults to shown (false) for new users.
     @State private var legendDismissed = UserDefaults.standard.bool(forKey: Self.legendDismissedKey)
@@ -63,34 +60,18 @@ struct ShelfRootView: View {
             topTrailingRadius: 12,
             style: .continuous
         ))
-        // Card → pinboard filing is handled here, at the shelf root, because a per-tab
-        // `.onDrop` never establishes a working drop region on the small pills inside this
-        // borderless non-activating glass panel (a shelf-level drop, by contrast, fires
-        // reliably). The delegate maps the drop location to the tab under it using each
-        // tab's frame, collected via PinboardTabFramesKey below.
+        // Drags onto the pinboard tabs (cards to file, tabs to reorder) are taken by the
+        // hosting view in AppKit, not by a SwiftUI `.onDrop` (see `ShelfHostingView`). It
+        // maps the pointer to a tab using each tab's frame, collected via
+        // PinboardTabFramesKey below.
         .coordinateSpace(name: "shelfRoot")
-        .onPreferenceChange(PinboardTabFramesKey.self) { pinboardTabFrames = $0 }
-        .onDrop(of: [UTType.copyItem, UTType.copyPinboard], delegate: PinboardDropDelegate(
-            tabFrames: { pinboardTabFrames },
-            onFileTargetChange: { viewModel.dropTargetedPinboardID = $0 },
-            onReorderTargetChange: { id, placeAfterTarget in
-                viewModel.reorderTargetedPinboardID = id
-                viewModel.reorderPlacesAfterTarget = placeAfterTarget
-            },
-            onFile: { id, uuids in
-                guard let pinboard = viewModel.pinboards.first(where: { $0.id == id }) else { return }
-                viewModel.dropItems(uuids: uuids, toPinboard: pinboard)
-                // Open the pinboard we just filed into, so the drop's result shows at once.
-                viewModel.tab = .pinboard(id)
-            },
-            onMove: { sourceID, targetID, placeAfterTarget in
-                viewModel.movePinboard(
-                    id: sourceID,
-                    relativeTo: targetID,
-                    placeAfterTarget: placeAfterTarget
-                )
-            }
-        ))
+        .onPreferenceChange(PinboardTabFramesKey.self) { viewModel.pinboardTabFrames = $0 }
+        // Pops out of the tab under a card drag to name the board it will land in.
+        .overlay {
+            PinboardDropCalloutLayer(callout: viewModel.dropCallout,
+                                     pinboards: viewModel.pinboards,
+                                     tabFrames: viewModel.pinboardTabFrames)
+        }
         // Pro-dark: force the marketing electric-blue accent regardless of the system
         // accent color. The forced dark appearance itself is set on the panel window in
         // `ShelfPanelController`, which cascades to this hosted content.
@@ -354,21 +335,23 @@ private struct ShelfTabs: View {
                 }
                 .onDrag {
                     guard let id = pinboard.id else { return NSItemProvider() }
+                    viewModel.pinboardDragStarted(id: id)
                     let data = Data(String(id).utf8)
                     let provider = NSItemProvider()
                     provider.registerDataRepresentation(
                         forTypeIdentifier: UTType.copyPinboard.identifier,
-                        visibility: .ownProcess
+                        // `.all` so the type is listed on the drag pasteboard: AppKit only offers a drag
+                        // to `ShelfHostingView` when one of its registered types is there.
+                        visibility: .all
                     ) { completion in
                         completion(data, nil)
                         return nil
                     }
                     return provider
                 }
-                // Publish this tab's frame (in the shelf's "shelfRoot" space) so the
-                // shelf-level PinboardDropDelegate can map a drop location back to this
-                // pinboard. Drops are handled at the shelf root, not per-tab — see
-                // PinboardDropDelegate for why.
+                // Publish this tab's frame (in the shelf's "shelfRoot" space) so
+                // ShelfHostingView can map a drag location back to this pinboard. Drops are
+                // handled for the whole shelf, not per-tab — see PinboardTabFramesKey for why.
                 .background(
                     GeometryReader { geo in
                         Color.clear.preference(
@@ -444,6 +427,9 @@ private struct TabPill: View {
         tint.isEmpty ? nil : Tokens.color(fromHex: tint)
     }
 
+    /// The board's own color when it has one, so the targeted tab matches its callout.
+    private var dropColor: Color { tintColor ?? .accentColor }
+
     var body: some View {
         HStack(spacing: 4) {
             if let emoji, !emoji.isEmpty {
@@ -478,7 +464,7 @@ private struct TabPill: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 6)
-                .stroke(isDropTargeted ? Color.accentColor : .clear, lineWidth: 2)
+                .stroke(isDropTargeted ? dropColor : .clear, lineWidth: 2)
         )
         .overlay(alignment: reorderIndicatorEdge == .trailing ? .trailing : .leading) {
             if reorderIndicatorEdge != nil {
@@ -489,13 +475,13 @@ private struct TabPill: View {
             }
         }
         // A drop-targeted tab visibly pops so it's unmistakable which pinboard a dragged
-        // card will land in, even when the cursor's drag chip sits near it.
+        // card will land in, even when the cursor's drag chip sits near it; the drop
+        // callout hangs from it (see `PinboardDropCalloutLayer`).
         .scaleEffect(isDropTargeted ? 1.08 : 1)
         .animation(.spring(response: 0.2, dampingFraction: 0.7), value: isDropTargeted)
-        // A plain tappable surface, NOT a Button, so the `.onDrop` each tab carries in
-        // `ShelfTabs` is a reliable drop target. A SwiftUI `Button` on macOS fights the
+        // A plain tappable surface, NOT a Button: a SwiftUI `Button` on macOS fights the
         // drag session for the mouse-up, so dragging a card onto a pinboard landed only
-        // intermittently; a tap gesture on a plain view coexists with `.onDrop` cleanly.
+        // intermittently; a tap gesture on a plain view coexists with the drag cleanly.
         .contentShape(Rectangle())
         .onTapGesture { action() }
         .accessibilityElement(children: .combine)
@@ -504,7 +490,7 @@ private struct TabPill: View {
     }
 
     private var backgroundFill: Color {
-        if isDropTargeted { return Color.accentColor.opacity(0.24) }
+        if isDropTargeted { return dropColor.opacity(0.24) }
         if isSelected {
             if let tintColor { return tintColor.opacity(0.18) }
             return Color.primary.opacity(0.08)
