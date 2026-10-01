@@ -69,7 +69,10 @@ struct ShelfRootView: View {
         // reliably). The delegate maps the drop location to the tab under it using each
         // tab's frame, collected via PinboardTabFramesKey below.
         .coordinateSpace(name: "shelfRoot")
-        .onPreferenceChange(PinboardTabFramesKey.self) { pinboardTabFrames = $0 }
+        .onPreferenceChange(PinboardTabFramesKey.self) {
+            pinboardTabFrames = $0
+            dndLog("tab frames updated: \($0)") // DnD-DEBUG
+        }
         .onDrop(of: [UTType.copyItem, UTType.copyPinboard], delegate: PinboardDropDelegate(
             tabFrames: { pinboardTabFrames },
             onFileTargetChange: { viewModel.dropTargetedPinboardID = $0 },

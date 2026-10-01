@@ -1,6 +1,14 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// DnD-DEBUG: temporary drag-and-drop tracing. Filter the Xcode console for "Copy DnD".
+func dndLog(_ message: String) {
+    NSLog("Copy DnD: %@", message)
+}
+
+/// DnD-DEBUG: last tab reported by `dropUpdated`, so the trace logs target changes only.
+private var dndLastLoggedTarget: Int64?? = .none
+
 /// Frames of each pinboard tab, keyed by pinboard id, in the shelf's `"shelfRoot"`
 /// coordinate space. Each `TabPill` publishes its own frame; `ShelfRootView` collects them
 /// so the shelf-level `PinboardDropDelegate` can tell which tab a drop landed on.
@@ -54,15 +62,23 @@ struct PinboardDropDelegate: DropDelegate {
     func validateDrop(info: DropInfo) -> Bool {
         let hasSupportedPayload = info.hasItemsConforming(to: [UTType.copyPinboard])
             || info.hasItemsConforming(to: [UTType.copyItem])
-        return hasSupportedPayload && pinboard(at: info.location) != nil
+        let result = hasSupportedPayload && pinboard(at: info.location) != nil
+        dndLog("validateDrop at \(info.location) copyItem=\(info.hasItemsConforming(to: [UTType.copyItem])) copyPinboard=\(info.hasItemsConforming(to: [UTType.copyPinboard])) tab=\(String(describing: pinboard(at: info.location))) tabFrames=\(tabFrames()) -> \(result)") // DnD-DEBUG
+        return result
     }
 
     func dropEntered(info: DropInfo) {
+        dndLog("dropEntered at \(info.location) tab=\(String(describing: pinboard(at: info.location)))") // DnD-DEBUG
+        dndLastLoggedTarget = .none // DnD-DEBUG
         updateTarget(for: info)
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
         let target = pinboard(at: info.location)
+        if dndLastLoggedTarget != .some(target) { // DnD-DEBUG
+            dndLog("dropUpdated: now over tab \(String(describing: target)) at \(info.location)") // DnD-DEBUG
+            dndLastLoggedTarget = .some(target) // DnD-DEBUG
+        } // DnD-DEBUG
         updateTarget(for: info)
         let operation: DropOperation = info.hasItemsConforming(to: [UTType.copyPinboard])
             ? .move
@@ -71,10 +87,12 @@ struct PinboardDropDelegate: DropDelegate {
     }
 
     func dropExited(info: DropInfo) {
+        dndLog("dropExited at \(info.location)") // DnD-DEBUG
         clearTargets()
     }
 
     func performDrop(info: DropInfo) -> Bool {
+        dndLog("performDrop at \(info.location) tab=\(String(describing: pinboard(at: info.location)))") // DnD-DEBUG
         guard let id = pinboard(at: info.location) else { return false }
 
         if let provider = info.itemProviders(for: [UTType.copyPinboard]).first {
@@ -93,12 +111,17 @@ struct PinboardDropDelegate: DropDelegate {
         }
 
         clearTargets()
-        guard let provider = info.itemProviders(for: [UTType.copyItem]).first else { return false }
-        provider.loadDataRepresentation(forTypeIdentifier: UTType.copyItem.identifier) { data, _ in
+        guard let provider = info.itemProviders(for: [UTType.copyItem]).first else {
+            dndLog("performDrop: no copyItem provider in the drop") // DnD-DEBUG
+            return false
+        }
+        provider.loadDataRepresentation(forTypeIdentifier: UTType.copyItem.identifier) { data, error in
+            dndLog("performDrop: payload loaded bytes=\(data?.count ?? -1) error=\(String(describing: error))") // DnD-DEBUG
             guard let data, let payload = String(data: data, encoding: .utf8) else { return }
             let uuids = payload.split(separator: "\n").map(String.init)
             guard !uuids.isEmpty else { return }
             DispatchQueue.main.async {
+                dndLog("performDrop: filing \(uuids.count) card(s) into tab \(id)") // DnD-DEBUG
                 onFile(id, uuids)
                 // Clear the highlight again after any trailing dropUpdated: SwiftUI doesn't
                 // call dropExited after a successful drop, so without this the filed-into

@@ -798,10 +798,14 @@ final class ShelfViewModel {
         guard let id = pinboard.id else { return }
         var added = 0
         for uuid in uuids {
-            guard let item = item(forUUID: uuid), let itemID = item.id else { continue }
+            guard let item = item(forUUID: uuid), let itemID = item.id else {
+                dndLog("dropItems: card \(uuid) not found") // DnD-DEBUG
+                continue
+            }
             do {
                 try pinboardStore.add(itemID: itemID, to: id)
                 added += 1
+                dndLog("dropItems: saved card \(itemID) to pinboard \(id)") // DnD-DEBUG
             } catch {
                 NSLog("Copy: failed to add item to pinboard: \(error)")
             }
@@ -950,12 +954,14 @@ final class ShelfViewModel {
     /// selection (or when only one card is selected) keeps today's single-item
     /// behavior unchanged.
     func dragProvider(for item: ClipItem) -> NSItemProvider {
+        dndLog("drag started: card \(item.uuid) kind=\(item.kind) selected=\(selection.selected.count)") // DnD-DEBUG
         if selection.selected.contains(item.uuid), selection.selected.count > 1 {
             return multiDragProvider()
         }
         let provider = contentProvider(for: item)
         let uuid = item.uuid
         provider.registerDataRepresentation(forTypeIdentifier: UTType.copyItem.identifier, visibility: .all) { completion in
+            dndLog("payload requested for card \(uuid)") // DnD-DEBUG
             completion(Data(uuid.utf8), nil)
             return nil
         }
@@ -978,7 +984,9 @@ final class ShelfViewModel {
         let joinedText = selected.map { $0.plainText ?? "" }.joined(separator: "\n")
         let provider = NSItemProvider(object: joinedText as NSString)
         let uuids = selected.map(\.uuid).joined(separator: "\n")
+        let selectedCount = selected.count // DnD-DEBUG
         provider.registerDataRepresentation(forTypeIdentifier: UTType.copyItem.identifier, visibility: .all) { completion in
+            dndLog("payload requested for \(selectedCount) selected cards") // DnD-DEBUG
             completion(Data(uuids.utf8), nil)
             return nil
         }
