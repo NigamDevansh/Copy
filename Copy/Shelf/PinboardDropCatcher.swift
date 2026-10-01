@@ -9,6 +9,30 @@ func dndLog(_ message: String) {
 /// DnD-DEBUG: last tab reported by `dropUpdated`, so the trace logs target changes only.
 private var dndLastLoggedTarget: Int64?? = .none
 
+/// DnD-DEBUG: logs the AppKit view under the pointer and every ancestor that is registered
+/// as a drag destination, to find which view takes a drag over from the shelf's `.onDrop`.
+func dndLogViewsUnderPointer(_ label: String) {
+    MainActor.assumeIsolated {
+        let screenPoint = NSEvent.mouseLocation
+        guard let window = NSApp.windows.first(where: { $0 is KeyablePanel && $0.isVisible }),
+              let content = window.contentView else {
+            dndLog("\(label): no shelf window")
+            return
+        }
+        let hit = content.hitTest(window.convertPoint(fromScreen: screenPoint))
+        var lines: [String] = []
+        var view = hit
+        while let current = view {
+            let types = current.registeredDraggedTypes.map(\.rawValue)
+            if current === hit || !types.isEmpty {
+                lines.append("\(type(of: current)) types=\(types)")
+            }
+            view = current.superview
+        }
+        dndLog("\(label): pointer \(screenPoint) hit chain (deepest first): \(lines.joined(separator: " <- "))")
+    }
+}
+
 /// Frames of each pinboard tab, keyed by pinboard id, in the shelf's `"shelfRoot"`
 /// coordinate space. Each `TabPill` publishes its own frame; `ShelfRootView` collects them
 /// so the shelf-level `PinboardDropDelegate` can tell which tab a drop landed on.
@@ -73,6 +97,7 @@ struct PinboardDropDelegate: DropDelegate {
 
     func dropEntered(info: DropInfo) {
         dndLog("dropEntered at \(info.location) tab=\(String(describing: pinboard(at: info.location)))") // DnD-DEBUG
+        dndLogViewsUnderPointer("dropEntered") // DnD-DEBUG
         dndLastLoggedTarget = .none // DnD-DEBUG
         updateTarget(for: info)
     }
@@ -92,6 +117,7 @@ struct PinboardDropDelegate: DropDelegate {
 
     func dropExited(info: DropInfo) {
         dndLog("dropExited at \(info.location)") // DnD-DEBUG
+        dndLogViewsUnderPointer("dropExited") // DnD-DEBUG
         clearTargets()
     }
 
