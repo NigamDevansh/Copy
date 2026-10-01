@@ -14,7 +14,7 @@ private var dndLastLoggedTarget: Int64?? = .none
 func dndLogViewsUnderPointer(_ label: String) {
     MainActor.assumeIsolated {
         let screenPoint = NSEvent.mouseLocation
-        guard let window = NSApp.windows.first(where: { $0 is KeyablePanel && $0.isVisible }),
+        guard let window = NSApp.windows.first(where: { $0 is KeyablePanel && $0.isVisible && $0.frame.contains(screenPoint) }),
               let content = window.contentView else {
             dndLog("\(label): no shelf window")
             return
