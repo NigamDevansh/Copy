@@ -6,33 +6,6 @@ func dndLog(_ message: String) {
     NSLog("Copy DnD: %@", message)
 }
 
-/// DnD-DEBUG: last tab reported by `dropUpdated`, so the trace logs target changes only.
-private var dndLastLoggedTarget: Int64?? = .none
-
-/// DnD-DEBUG: logs the AppKit view under the pointer and every ancestor that is registered
-/// as a drag destination, to find which view takes a drag over from the shelf's `.onDrop`.
-func dndLogViewsUnderPointer(_ label: String) {
-    MainActor.assumeIsolated {
-        let screenPoint = NSEvent.mouseLocation
-        guard let window = NSApp.windows.first(where: { $0 is KeyablePanel && $0.isVisible && $0.frame.contains(screenPoint) }),
-              let content = window.contentView else {
-            dndLog("\(label): no shelf window")
-            return
-        }
-        let hit = content.hitTest(window.convertPoint(fromScreen: screenPoint))
-        var lines: [String] = []
-        var view = hit
-        while let current = view {
-            let types = current.registeredDraggedTypes.map(\.rawValue)
-            if current === hit || !types.isEmpty {
-                lines.append("\(type(of: current)) types=\(types)")
-            }
-            view = current.superview
-        }
-        dndLog("\(label): pointer \(screenPoint) hit chain (deepest first): \(lines.joined(separator: " <- "))")
-    }
-}
-
 /// Frames of each pinboard tab, keyed by pinboard id, in the shelf's `"shelfRoot"`
 /// coordinate space. Each `TabPill` publishes its own frame; `ShelfRootView` collects them
 /// so the shelf-level `PinboardDropDelegate` can tell which tab a drop landed on.
@@ -49,23 +22,10 @@ struct PinboardTabFramesKey: PreferenceKey {
     }
 }
 
-/// Shelf-level drop target for both card filing and pinboard reordering. Small per-tab
-/// drop targets don't work reliably in the shelf panel, so both paths resolve the tab
-/// under the pointer from the frames published by `PinboardTabFramesKey`.
-struct PinboardDropDelegate: DropDelegate {
-    /// Pinboard tab frames in the same coordinate space this delegate's `.onDrop` uses.
-    var tabFrames: () -> [Int64: CGRect]
-    /// Reports the card-filing target for the existing full-tab highlight.
-    var onFileTargetChange: (Int64?) -> Void
-    /// Reports the reorder target and whether the insertion point is after its midpoint.
-    var onReorderTargetChange: (Int64?, Bool) -> Void
-    /// Files the dragged card uuid(s) into the given pinboard.
-    var onFile: (Int64, [String]) -> Void
-    /// Moves one dragged pinboard before or after the target pinboard.
-    var onMove: (Int64, Int64, Bool) -> Void
-
-    private func pinboard(at point: CGPoint) -> Int64? {
-        let frames = tabFrames()
+/// Maps a point in the shelf's top-left coordinate space (`"shelfRoot"`, which is also the
+/// hosting view's) to the pinboard tab under it, using the frames each tab publishes.
+enum PinboardTabHitTest {
+    static func pinboard(at point: CGPoint, in frames: [Int64: CGRect]) -> Int64? {
         guard !frames.isEmpty else { return nil }
         // Exact hit first (cursor squarely inside a pill).
         if let hit = frames.first(where: { $0.value.contains(point) })?.key { return hit }
@@ -82,81 +42,67 @@ struct PinboardDropDelegate: DropDelegate {
         }
         return frames.min(by: { abs($0.value.midX - point.x) < abs($1.value.midX - point.x) })?.key
     }
+}
 
-    /// Accepts any card or pinboard drag, wherever it enters. SwiftUI asks this once, as
-    /// the drag enters the shelf, and ignores the rest of the session on `false`. A card
-    /// drag starts over the cards, never over a tab, so gating on the location here
-    /// rejected every card drag. The location is enforced where it belongs instead:
-    /// `dropUpdated` cancels off-tab and `performDrop` ignores a release off-tab.
+/// Shelf-level drop target for reordering pinboards by dragging their tabs. Small per-tab
+/// drop targets don't work reliably in the shelf panel, so this resolves the tab under the
+/// pointer from the frames published by `PinboardTabFramesKey`.
+///
+/// Card → pinboard filing is not handled here: a card drag starts inside the card row's
+/// scroll view, and SwiftUI stops delivering drop updates once that drag crosses into the
+/// header, so the tabs never see it. The shelf's AppKit container (`ShelfClippingView` in
+/// `ShelfPanelController`) takes card drags instead.
+struct PinboardDropDelegate: DropDelegate {
+    /// Pinboard tab frames in the same coordinate space this delegate's `.onDrop` uses.
+    var tabFrames: () -> [Int64: CGRect]
+    /// Reports the reorder target and whether the insertion point is after its midpoint.
+    var onReorderTargetChange: (Int64?, Bool) -> Void
+    /// Moves one dragged pinboard before or after the target pinboard.
+    var onMove: (Int64, Int64, Bool) -> Void
+
+    private func pinboard(at point: CGPoint) -> Int64? {
+        PinboardTabHitTest.pinboard(at: point, in: tabFrames())
+    }
+
+    /// Accepts any pinboard drag, wherever it enters. SwiftUI asks this once, as the drag
+    /// enters the shelf, and ignores the rest of the session on `false`, so the location
+    /// is enforced in `dropUpdated` and `performDrop` instead.
     func validateDrop(info: DropInfo) -> Bool {
-        let result = info.hasItemsConforming(to: [UTType.copyPinboard])
-            || info.hasItemsConforming(to: [UTType.copyItem])
-        dndLog("validateDrop at \(info.location) copyItem=\(info.hasItemsConforming(to: [UTType.copyItem])) copyPinboard=\(info.hasItemsConforming(to: [UTType.copyPinboard])) tab=\(String(describing: pinboard(at: info.location))) tabFrames=\(tabFrames()) -> \(result)") // DnD-DEBUG
-        return result
+        info.hasItemsConforming(to: [UTType.copyPinboard])
     }
 
     func dropEntered(info: DropInfo) {
-        dndLog("dropEntered at \(info.location) tab=\(String(describing: pinboard(at: info.location)))") // DnD-DEBUG
-        dndLogViewsUnderPointer("dropEntered") // DnD-DEBUG
-        dndLastLoggedTarget = .none // DnD-DEBUG
         updateTarget(for: info)
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
-        let target = pinboard(at: info.location)
-        if dndLastLoggedTarget != .some(target) { // DnD-DEBUG
-            dndLog("dropUpdated: now over tab \(String(describing: target)) at \(info.location)") // DnD-DEBUG
-            dndLastLoggedTarget = .some(target) // DnD-DEBUG
-        } // DnD-DEBUG
         updateTarget(for: info)
-        let operation: DropOperation = info.hasItemsConforming(to: [UTType.copyPinboard])
-            ? .move
-            : .copy
-        return DropProposal(operation: target != nil ? operation : .cancel)
+        return DropProposal(operation: pinboard(at: info.location) != nil ? .move : .cancel)
     }
 
     func dropExited(info: DropInfo) {
-        dndLog("dropExited at \(info.location)") // DnD-DEBUG
-        dndLogViewsUnderPointer("dropExited") // DnD-DEBUG
-        clearTargets()
+        clearTarget()
     }
 
     func performDrop(info: DropInfo) -> Bool {
-        dndLog("performDrop at \(info.location) tab=\(String(describing: pinboard(at: info.location)))") // DnD-DEBUG
-        guard let id = pinboard(at: info.location) else { return false }
-
-        if let provider = info.itemProviders(for: [UTType.copyPinboard]).first {
-            let placeAfterTarget = placesAfterTarget(id, at: info.location)
-            clearTargets()
-            provider.loadDataRepresentation(forTypeIdentifier: UTType.copyPinboard.identifier) { data, _ in
+        // Checked by type, not by `itemProviders(for:)`: that call also returns providers of
+        // other generic-data types (a card), whose pinboard payload then fails to load.
+        guard info.hasItemsConforming(to: [UTType.copyPinboard]),
+              let id = pinboard(at: info.location),
+              let provider = info.itemProviders(for: [UTType.copyPinboard]).first else {
+            clearTarget()
+            return false
+        }
+        let placeAfterTarget = placesAfterTarget(id, at: info.location)
+        clearTarget()
+        provider.loadDataRepresentation(forTypeIdentifier: UTType.copyPinboard.identifier) { data, _ in
+            DispatchQueue.main.async {
+                // Clear again after any trailing dropUpdated, whether or not the load worked.
+                defer { clearTarget() }
                 guard let data,
                       let rawID = String(data: data, encoding: .utf8),
                       let sourceID = Int64(rawID) else { return }
-                DispatchQueue.main.async {
-                    onMove(sourceID, id, placeAfterTarget)
-                    clearTargets()
-                }
-            }
-            return true
-        }
-
-        clearTargets()
-        guard let provider = info.itemProviders(for: [UTType.copyItem]).first else {
-            dndLog("performDrop: no copyItem provider in the drop") // DnD-DEBUG
-            return false
-        }
-        provider.loadDataRepresentation(forTypeIdentifier: UTType.copyItem.identifier) { data, error in
-            dndLog("performDrop: payload loaded bytes=\(data?.count ?? -1) error=\(String(describing: error))") // DnD-DEBUG
-            guard let data, let payload = String(data: data, encoding: .utf8) else { return }
-            let uuids = payload.split(separator: "\n").map(String.init)
-            guard !uuids.isEmpty else { return }
-            DispatchQueue.main.async {
-                dndLog("performDrop: filing \(uuids.count) card(s) into tab \(id)") // DnD-DEBUG
-                onFile(id, uuids)
-                // Clear the highlight again after any trailing dropUpdated: SwiftUI doesn't
-                // call dropExited after a successful drop, so without this the filed-into
-                // tab keeps its drop border.
-                clearTargets()
+                onMove(sourceID, id, placeAfterTarget)
             }
         }
         return true
@@ -164,13 +110,7 @@ struct PinboardDropDelegate: DropDelegate {
 
     private func updateTarget(for info: DropInfo) {
         let target = pinboard(at: info.location)
-        if info.hasItemsConforming(to: [UTType.copyPinboard]) {
-            onFileTargetChange(nil)
-            onReorderTargetChange(target, target.map { placesAfterTarget($0, at: info.location) } ?? false)
-        } else {
-            onReorderTargetChange(nil, false)
-            onFileTargetChange(target)
-        }
+        onReorderTargetChange(target, target.map { placesAfterTarget($0, at: info.location) } ?? false)
     }
 
     private func placesAfterTarget(_ id: Int64, at point: CGPoint) -> Bool {
@@ -178,8 +118,7 @@ struct PinboardDropDelegate: DropDelegate {
         return point.x >= frame.midX
     }
 
-    private func clearTargets() {
-        onFileTargetChange(nil)
+    private func clearTarget() {
         onReorderTargetChange(nil, false)
     }
 }

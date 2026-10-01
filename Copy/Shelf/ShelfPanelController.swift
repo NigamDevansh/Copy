@@ -1,5 +1,6 @@
 import AppKit
 import CopyCore
+import UniformTypeIdentifiers
 
 final class KeyablePanel: NSPanel {
     override var canBecomeKey: Bool { true }
@@ -22,8 +23,22 @@ final class KeyablePanel: NSPanel {
 /// shelf lives on a display with another display below it: moving the window itself past
 /// the upper display's edge makes it visible on the lower one, while moving this child
 /// view is clipped to the stationary window.
+///
+/// It is also the drop target for card → pinboard drags. SwiftUI's `.onDrop` can't take
+/// them: a card drag starts inside the card row's scroll view, and SwiftUI stops sending
+/// drop updates once the drag crosses into the header, so the tabs never see it. This view
+/// covers the whole shelf, so AppKit keeps the drag here from start to end. It reports
+/// points in the shelf content's top-left space, the same space the tab frames use.
 private final class ShelfClippingView: NSView {
     let shelfContent: NSView
+    /// The pointer moved to `point`; returns whether a pinboard tab is under it.
+    var onCardDragMoved: ((CGPoint) -> Bool)?
+    /// The drag left the shelf or ended.
+    var onCardDragEnded: (() -> Void)?
+    /// Dropped at `point` with the payload's uuids (nil if unreadable); returns success.
+    var onCardDrop: ((CGPoint, [String]?) -> Bool)?
+
+    private static let cardType = NSPasteboard.PasteboardType(UTType.copyItem.identifier)
 
     init(content: NSView) {
         shelfContent = content
@@ -32,6 +47,7 @@ private final class ShelfClippingView: NSView {
         layer?.masksToBounds = true
         addSubview(content)
         content.autoresizingMask = [.width, .height]
+        registerForDraggedTypes([Self.cardType])
     }
 
     @available(*, unavailable)
@@ -44,6 +60,42 @@ private final class ShelfClippingView: NSView {
         var contentFrame = shelfContent.frame
         contentFrame.size = bounds.size
         shelfContent.frame = contentFrame
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        dndLog("AppKit card drag entered at \(shelfPoint(for: sender))") // DnD-DEBUG
+        return cardDragOperation(for: sender)
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        cardDragOperation(for: sender)
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        dndLog("AppKit card drag exited") // DnD-DEBUG
+        onCardDragEnded?()
+    }
+
+    override func draggingEnded(_ sender: NSDraggingInfo) {
+        onCardDragEnded?()
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let uuids = sender.draggingPasteboard.data(forType: Self.cardType)
+            .flatMap { String(data: $0, encoding: .utf8) }
+            .map { $0.split(separator: "\n").map(String.init) }
+        dndLog("AppKit card drop at \(shelfPoint(for: sender)) payload=\(String(describing: uuids))") // DnD-DEBUG
+        return onCardDrop?(shelfPoint(for: sender), uuids) ?? false
+    }
+
+    private func cardDragOperation(for sender: NSDraggingInfo) -> NSDragOperation {
+        (onCardDragMoved?(shelfPoint(for: sender)) ?? false) ? .copy : []
+    }
+
+    /// The drag location in the shelf content's top-left coordinate space.
+    private func shelfPoint(for sender: NSDraggingInfo) -> CGPoint {
+        let point = shelfContent.convert(sender.draggingLocation, from: nil)
+        return shelfContent.isFlipped ? point : CGPoint(x: point.x, y: shelfContent.bounds.height - point.y)
     }
 }
 
@@ -67,6 +119,12 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
     /// Called on a mouse-down in the shelf that lands outside the text field currently
     /// being edited (or anywhere, when none is), so the owner can end search editing.
     var onClickOutsideTextField: (() -> Void)?
+    /// Card → pinboard drag over the shelf, in the shelf content's top-left coordinates
+    /// (see `ShelfClippingView`): moved (returns whether a tab is under the point), ended,
+    /// and dropped (with the payload's uuids, or nil if unreadable; returns success).
+    var onCardDragMoved: ((CGPoint) -> Bool)?
+    var onCardDragEnded: (() -> Void)?
+    var onCardDrop: ((CGPoint, [String]?) -> Bool)?
     private var lastPressureStage = 0
     var onDidHide: (() -> Void)?
 
@@ -292,7 +350,11 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
         panel.becomesKeyOnlyIfNeeded = false
         panel.isFloatingPanel = true
         panel.delegate = self
-        panel.contentView = ShelfClippingView(content: makeContent())
+        let container = ShelfClippingView(content: makeContent())
+        container.onCardDragMoved = { [weak self] point in self?.onCardDragMoved?(point) ?? false }
+        container.onCardDragEnded = { [weak self] in self?.onCardDragEnded?() }
+        container.onCardDrop = { [weak self] point, uuids in self?.onCardDrop?(point, uuids) ?? false }
+        panel.contentView = container
         panel.sharingType = hideDuringScreenSharing ? .none : .readOnly
         panel.childWindowSharingType = hideDuringScreenSharing ? .none : .readOnly
         return panel

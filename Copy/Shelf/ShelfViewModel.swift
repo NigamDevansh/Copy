@@ -92,6 +92,13 @@ final class ShelfViewModel {
     var reorderTargetedPinboardID: Int64?
     var reorderPlacesAfterTarget = false
     var dropTargetedPinboardID: Int64?
+    /// Each pinboard tab's frame in the shelf's top-left coordinate space, published by
+    /// `ShelfRootView`. Read by both drop paths: SwiftUI's tab reordering and AppKit's card
+    /// filing (`cardDragMoved`/`fileDroppedCards`). Not observed: nothing redraws from it.
+    @ObservationIgnored var pinboardTabFrames: [Int64: CGRect] = [:]
+    /// The uuid(s) the most recent card drag carried, recorded by `dragProvider`. A fallback
+    /// for `fileDroppedCards` when the drop's pasteboard can't hand the payload over yet.
+    @ObservationIgnored private var lastDraggedCardUUIDs: [String] = []
     /// Set by a force-click (which fires before the click's own mouse-up resolves) so the
     /// release doesn't then paste the card. Consumed by the next `handleCardClick`.
     @ObservationIgnored var suppressNextCardPaste = false
@@ -794,6 +801,40 @@ final class ShelfViewModel {
     /// Handles a card (or a whole multi-selection) dropped onto a pinboard tab.
     /// `uuids` is one uuid for a single-card drag, or the ordered selection's uuids
     /// for a multi-selection drag (see `ShelfViewModel.multiDragProvider()`).
+    /// A card drag moved over the shelf (from `ShelfPanelController`'s AppKit drop target).
+    /// Highlights the pinboard tab under `point` and returns whether there is one, which
+    /// decides whether the pointer shows a copy badge.
+    func cardDragMoved(to point: CGPoint) -> Bool {
+        let target = PinboardTabHitTest.pinboard(at: point, in: pinboardTabFrames)
+        if dropTargetedPinboardID != target {
+            dndLog("card drag now over tab \(String(describing: target)) at \(point)") // DnD-DEBUG
+            dropTargetedPinboardID = target
+        }
+        return target != nil
+    }
+
+    /// The card drag left the shelf or ended without a drop on a tab.
+    func cardDragEnded() {
+        dropTargetedPinboardID = nil
+    }
+
+    /// Files dropped card uuid(s) into the pinboard tab under `point`, then opens that tab
+    /// so the result shows at once. Returns false when the drop wasn't on a tab.
+    func fileDroppedCards(_ payloadUUIDs: [String]?, at point: CGPoint) -> Bool {
+        dropTargetedPinboardID = nil
+        let uuids = payloadUUIDs ?? lastDraggedCardUUIDs
+        dndLog("card drop: payload \(payloadUUIDs == nil ? "unavailable, using last drag" : "read") (\(uuids.count) card(s))") // DnD-DEBUG
+        guard let id = PinboardTabHitTest.pinboard(at: point, in: pinboardTabFrames),
+              let pinboard = pinboards.first(where: { $0.id == id }) else {
+            dndLog("card drop at \(point) is not on a tab") // DnD-DEBUG
+            return false
+        }
+        dndLog("card drop: filing \(uuids.count) card(s) into tab \(id)") // DnD-DEBUG
+        dropItems(uuids: uuids, toPinboard: pinboard)
+        tab = .pinboard(id)
+        return true
+    }
+
     func dropItems(uuids: [String], toPinboard pinboard: Pinboard) {
         guard let id = pinboard.id else { return }
         var added = 0
@@ -954,10 +995,18 @@ final class ShelfViewModel {
     /// selection (or when only one card is selected) keeps today's single-item
     /// behavior unchanged.
     func dragProvider(for item: ClipItem) -> NSItemProvider {
+        // Dragging a card that isn't selected selects it first, like Finder: the selection
+        // follows the drag, and the drag carries that card alone. Dragging a card inside a
+        // multi-selection still carries the whole selection.
+        if !selection.selected.contains(item.uuid) {
+            selection.click(item.uuid)
+        }
         dndLog("drag started: card \(item.uuid) kind=\(item.kind) selected=\(selection.selected.count)") // DnD-DEBUG
-        if selection.selected.contains(item.uuid), selection.selected.count > 1 {
+        if selection.selected.count > 1 {
+            lastDraggedCardUUIDs = orderedSelectedItems.map(\.uuid)
             return multiDragProvider()
         }
+        lastDraggedCardUUIDs = [item.uuid]
         let provider = contentProvider(for: item)
         let uuid = item.uuid
         provider.registerDataRepresentation(forTypeIdentifier: UTType.copyItem.identifier, visibility: .all) { completion in

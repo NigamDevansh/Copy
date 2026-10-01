@@ -7,9 +7,6 @@ import UniformTypeIdentifiers
 struct ShelfRootView: View {
     @Bindable var viewModel: ShelfViewModel
     @State private var permissionBannerDismissed = false
-    /// Pinboard tab frames (id → frame in the "shelfRoot" space), published by each tab and
-    /// consumed by the shelf-level `PinboardDropDelegate` to route a drop to the right tab.
-    @State private var pinboardTabFrames: [Int64: CGRect] = [:]
     /// Persisted so the keyboard legend, once dismissed, stays gone. Read once here;
     /// `dismissLegend()` writes it back. Defaults to shown (false) for new users.
     @State private var legendDismissed = UserDefaults.standard.bool(forKey: Self.legendDismissedKey)
@@ -63,28 +60,21 @@ struct ShelfRootView: View {
             topTrailingRadius: 12,
             style: .continuous
         ))
-        // Card → pinboard filing is handled here, at the shelf root, because a per-tab
+        // Pinboard tab reordering is handled here, at the shelf root, because a per-tab
         // `.onDrop` never establishes a working drop region on the small pills inside this
-        // borderless non-activating glass panel (a shelf-level drop, by contrast, fires
-        // reliably). The delegate maps the drop location to the tab under it using each
-        // tab's frame, collected via PinboardTabFramesKey below.
+        // borderless non-activating glass panel. The delegate maps the drop location to the
+        // tab under it using each tab's frame, collected via PinboardTabFramesKey below.
+        // Card → pinboard filing uses the same frames, from AppKit (see `ShelfClippingView`).
         .coordinateSpace(name: "shelfRoot")
         .onPreferenceChange(PinboardTabFramesKey.self) {
-            pinboardTabFrames = $0
+            viewModel.pinboardTabFrames = $0
             dndLog("tab frames updated: \($0)") // DnD-DEBUG
         }
-        .onDrop(of: [UTType.copyItem, UTType.copyPinboard], delegate: PinboardDropDelegate(
-            tabFrames: { pinboardTabFrames },
-            onFileTargetChange: { viewModel.dropTargetedPinboardID = $0 },
+        .onDrop(of: [UTType.copyPinboard], delegate: PinboardDropDelegate(
+            tabFrames: { viewModel.pinboardTabFrames },
             onReorderTargetChange: { id, placeAfterTarget in
                 viewModel.reorderTargetedPinboardID = id
                 viewModel.reorderPlacesAfterTarget = placeAfterTarget
-            },
-            onFile: { id, uuids in
-                guard let pinboard = viewModel.pinboards.first(where: { $0.id == id }) else { return }
-                viewModel.dropItems(uuids: uuids, toPinboard: pinboard)
-                // Open the pinboard we just filed into, so the drop's result shows at once.
-                viewModel.tab = .pinboard(id)
             },
             onMove: { sourceID, targetID, placeAfterTarget in
                 viewModel.movePinboard(
