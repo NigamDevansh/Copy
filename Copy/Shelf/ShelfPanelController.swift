@@ -1,5 +1,7 @@
 import AppKit
 import CopyCore
+import SwiftUI
+import UniformTypeIdentifiers
 
 final class KeyablePanel: NSPanel {
     override var canBecomeKey: Bool { true }
@@ -44,6 +46,102 @@ private final class ShelfClippingView: NSView {
         var contentFrame = shelfContent.frame
         contentFrame.size = bounds.size
         shelfContent.frame = contentFrame
+    }
+}
+
+/// The shelf's SwiftUI host, and the only drag destination in the shelf: it takes both
+/// drags that end on a pinboard tab — a card (or selection) to file into it, and a tab to
+/// reorder — in AppKit, following each from start to end and resolving the tab under the
+/// pointer from the frames the view model holds.
+///
+/// The shelf deliberately has no SwiftUI `.onDrop`. That modifier installs its own
+/// full-size drop view inside this one, registered for `public.item`, so it claims every
+/// drag over the shelf and AppKit never asks this view; it then rejected card drags
+/// outright (they slid back with no highlight), and a drag that starts in the card row
+/// stops getting SwiftUI drop updates once it crosses into the header. Points are reported
+/// in this view's top-left space, the same space the tab frames use.
+final class ShelfHostingView: NSHostingView<ShelfRootView> {
+    /// The drag started in the shelf, if one is in progress. Used when the drag pasteboard
+    /// doesn't list the card or pinboard type by name (it can be promised lazily).
+    var activeShelfDrag: () -> ShelfDrag? = { nil }
+    /// The pointer moved to `point`; returns whether a pinboard tab is under it.
+    var onDragMoved: ((ShelfDrag.Kind, CGPoint) -> Bool)?
+    /// The drag left the shelf; it may come back.
+    var onDragExited: (() -> Void)?
+    /// The drag session ended, dropped or not.
+    var onDragEnded: (() -> Void)?
+    /// Cards dropped at `point` with the payload's uuids (nil if unreadable); returns success.
+    var onCardDrop: ((CGPoint, [String]?) -> Bool)?
+    /// A pinboard tab dropped at `point` with its id (nil if unreadable); returns success.
+    var onPinboardDrop: ((CGPoint, Int64?) -> Bool)?
+
+    private static let cardType = NSPasteboard.PasteboardType(UTType.copyItem.identifier)
+    private static let pinboardType = NSPasteboard.PasteboardType(UTType.copyPinboard.identifier)
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        registerForDraggedTypes([Self.cardType, Self.pinboardType])
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        operation(for: sender)
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        operation(for: sender)
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        onDragExited?()
+    }
+
+    override func draggingEnded(_ sender: NSDraggingInfo) {
+        onDragEnded?()
+    }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        dragKind(sender) != nil
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let point = shelfPoint(for: sender)
+        let payload = sender.draggingPasteboard
+        switch dragKind(sender) {
+        case .cards:
+            let uuids = payload.data(forType: Self.cardType)
+                .flatMap { String(data: $0, encoding: .utf8) }
+                .map { $0.split(separator: "\n").map(String.init) }
+            return onCardDrop?(point, uuids) ?? false
+        case .pinboard:
+            let id = payload.data(forType: Self.pinboardType)
+                .flatMap { String(data: $0, encoding: .utf8) }
+                .flatMap { Int64($0) }
+            return onPinboardDrop?(point, id) ?? false
+        case nil:
+            return false
+        }
+    }
+
+    /// What the drag carries: a pinboard tab or cards started in the shelf, or nil for
+    /// anything else (drags from other apps), which the shelf doesn't accept.
+    private func dragKind(_ sender: NSDraggingInfo) -> ShelfDrag.Kind? {
+        let types = sender.draggingPasteboard.types ?? []
+        if types.contains(Self.pinboardType) { return .pinboard }
+        if types.contains(Self.cardType) { return .cards }
+        guard sender.draggingSource != nil else { return nil }
+        return activeShelfDrag()?.kind
+    }
+
+    private func operation(for sender: NSDraggingInfo) -> NSDragOperation {
+        guard let kind = dragKind(sender),
+              onDragMoved?(kind, shelfPoint(for: sender)) == true else { return [] }
+        return kind == .cards ? .copy : .move
+    }
+
+    /// The drag location in this view's top-left coordinate space.
+    private func shelfPoint(for sender: NSDraggingInfo) -> CGPoint {
+        let point = convert(sender.draggingLocation, from: nil)
+        return isFlipped ? point : CGPoint(x: point.x, y: bounds.height - point.y)
     }
 }
 
