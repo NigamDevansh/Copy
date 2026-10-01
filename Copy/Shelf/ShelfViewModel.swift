@@ -68,6 +68,14 @@ final class ShelfViewModel {
     var tab: ShelfTab = .history {
         didSet { if tab != oldValue { refresh() } }
     }
+
+    /// A user-driven tab change (tab click, ⌘-number, ⌘[ / ⌘]): switches with a light
+    /// tap. Programmatic switches — filing a drop opens its board — set `tab` directly so
+    /// the drop's own, firmer haptic isn't doubled.
+    func selectTab(_ newTab: ShelfTab) {
+        if newTab != tab { Haptics.tap() }
+        tab = newTab
+    }
     var pinboards: [Pinboard] = []
     var selection = ShelfSelection()
     var previewShown = false
@@ -439,6 +447,7 @@ final class ShelfViewModel {
     }
 
     func requestPaste(_ item: ClipItem, plain: Bool) {
+        Haptics.confirm()
         onPaste?(item, plain)
     }
 
@@ -541,6 +550,7 @@ final class ShelfViewModel {
             return
         }
         let joined = filtered.map { $0.plainText ?? "" }.joined(separator: "\n")
+        Haptics.confirm()
         onPasteMultiple?(joined)
     }
 
@@ -557,7 +567,10 @@ final class ShelfViewModel {
                 HUD.show("Couldn't complete that")
             }
         }
-        if !snapshots.isEmpty { pushUndo(.deleted(snapshots)) }
+        if !snapshots.isEmpty {
+            pushUndo(.deleted(snapshots))
+            Haptics.confirm()
+        }
         if !searchQuery.isEmpty { refresh() }
     }
 
@@ -612,6 +625,7 @@ final class ShelfViewModel {
         do {
             try store.delete(itemID: id)
             if let snapshot { pushUndo(.deleted([snapshot])) }
+            Haptics.confirm()
         } catch {
             NSLog("Copy: failed to delete item: \(error)")
             HUD.show("Couldn't complete that")
@@ -624,6 +638,7 @@ final class ShelfViewModel {
         guard let id = item.id else { return }
         do {
             try store.setFavorite(itemID: id, !item.isFavorite)
+            Haptics.confirm()
         } catch {
             NSLog("Copy: failed to toggle favorite: \(error)")
             HUD.show("Couldn't complete that")
@@ -790,6 +805,7 @@ final class ShelfViewModel {
                 try pinboardStore.add(itemID: itemID, to: pinboardID)
                 HUD.show("Restored to pinboard")
             }
+            Haptics.confirm()
             reload()
         } catch {
             NSLog("Copy: undo failed: \(error)")
@@ -808,6 +824,7 @@ final class ShelfViewModel {
     /// A pinboard tab drag started (from the tab's `.onDrag`).
     func pinboardDragStarted(id: Int64) {
         activeShelfDrag = .pinboard(id)
+        Haptics.tap()
     }
 
     /// A shelf drag moved to `point` (from `ShelfHostingView`). Highlights the pinboard tab
@@ -823,11 +840,11 @@ final class ShelfViewModel {
                 if case .cards(let uuids) = activeShelfDrag { count = max(uuids.count, 1) }
                 dropCallout = target.map { PinboardDropCallout(pinboardID: $0, count: count, phase: .targeting) }
                 // A light tap on the trackpad as the drag lands on a board.
-                if target != nil {
-                    NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
-                }
+                if target != nil { Haptics.tap() }
             }
         case .pinboard:
+            // Same tap as a card drag when the dragged tab reaches a new neighbor.
+            if reorderTargetedPinboardID != target, target != nil { Haptics.tap() }
             reorderTargetedPinboardID = target
             reorderPlacesAfterTarget = target.map { placesAfterTab($0, at: point) } ?? false
         }
@@ -863,6 +880,7 @@ final class ShelfViewModel {
             return false
         }
         let added = dropItems(uuids: uuids, toPinboard: pinboard)
+        Haptics.snap()
         tab = .pinboard(id)
         if added > 0 { showFiledCallout(pinboardID: id, count: added) }
         return true
@@ -882,6 +900,7 @@ final class ShelfViewModel {
         if sourceID != targetID {
             movePinboard(id: sourceID, relativeTo: targetID,
                          placeAfterTarget: placesAfterTab(targetID, at: point))
+            Haptics.snap()
         }
         return true
     }
@@ -1068,6 +1087,7 @@ final class ShelfViewModel {
         if !selection.selected.contains(item.uuid) {
             selection.click(item.uuid)
         }
+        Haptics.tap()
         if selection.selected.count > 1 {
             activeShelfDrag = .cards(orderedSelectedItems.map(\.uuid))
             return multiDragProvider()

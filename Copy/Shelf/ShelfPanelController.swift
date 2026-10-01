@@ -294,6 +294,8 @@ final class ShelfPanelController: NSObject, NSWindowDelegate {
             }
         }
         installKeyMonitor()
+        // The summon itself gets a firmer click than the taps inside the shelf.
+        Haptics.snap()
         // The shelf opens in browse mode: keep the search field from auto-becoming first
         // responder when the panel keys up (AppKit picks the first text field otherwise).
         // Clear it now and again after SwiftUI's first layout pass, which can set it late.

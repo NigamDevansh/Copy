@@ -286,7 +286,7 @@ private struct ShelfTabs: View {
                 symbol: "clock",
                 isSelected: viewModel.tab == .history,
                 shortcutHint: viewModel.commandHeld ? "1" : nil,
-                action: { viewModel.tab = .history }
+                action: { viewModel.selectTab(.history) }
             )
             ForEach(Array(viewModel.pinboards.enumerated()), id: \.element.id) { offset, pinboard in
                 TabPill(
@@ -309,7 +309,7 @@ private struct ShelfTabs: View {
                         if viewModel.tab == .pinboard(id) {
                             renamingPinboard = pinboard
                         } else {
-                            viewModel.tab = .pinboard(id)
+                            viewModel.selectTab(.pinboard(id))
                         }
                     }
                 )
@@ -447,15 +447,17 @@ private struct TabPill: View {
             if let shortcutHint {
                 Text("⌘\(shortcutHint)")
                     .font(.system(size: 9, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.primary.opacity(0.7))
                     .padding(.horizontal, 3)
                     .padding(.vertical, 1)
-                    .background(Capsule().fill(Color(nsColor: .quaternaryLabelColor).opacity(0.6)))
+                    .background(Capsule().fill(Color.primary.opacity(0.1)))
                     .accessibilityHidden(true)
             }
         }
         .font(Tokens.caption)
-        .foregroundStyle(isSelected ? .primary : .secondary)
+        // Unselected tabs sit a step below the selected one but stay well above
+        // `.secondary`, which drops too far on glass (see `GlassSurfaceModifier`).
+        .foregroundStyle(isSelected ? Color.primary : Color.primary.opacity(0.72))
         .padding(.horizontal, 8)
         .frame(height: 24)
         .background(

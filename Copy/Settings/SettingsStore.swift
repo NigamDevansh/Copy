@@ -108,6 +108,7 @@ final class SettingsStore {
     static let hideMenuBarIconKey = "hideMenuBarIcon"
     static let doubleClickToPasteKey = "doubleClickToPaste"
     static let copySoundKey = "copySound"
+    static let hapticFeedbackKey = "hapticFeedback"
 
     var retention: RetentionPeriod {
         didSet {
@@ -237,6 +238,17 @@ final class SettingsStore {
         }
     }
 
+    /// Trackpad haptics on shelf interactions (tab switches, filing a card, pasting…).
+    /// On by default: the taps are subtle and only fire for things the user did. Mirrored
+    /// into `Haptics.isEnabled` so call sites don't need the store.
+    var hapticFeedback: Bool {
+        didSet {
+            guard hapticFeedback != oldValue else { return }
+            defaults.set(hapticFeedback, forKey: Self.hapticFeedbackKey)
+            Haptics.isEnabled = hapticFeedback
+        }
+    }
+
     @ObservationIgnored var onRulesChange: ((Set<String>) -> Void)?
     /// Fired by the About pane's "Check for Updates…" button. Bridged to Sparkle's
     /// `updaterController` in `AppDelegate` (which owns it), so this store — and the
@@ -284,6 +296,9 @@ final class SettingsStore {
         doubleClickToPaste = (defaults.object(forKey: Self.doubleClickToPasteKey) as? Bool) ?? true
         copySound = defaults.string(forKey: Self.copySoundKey)
             .flatMap(CopySound.init(rawValue:)) ?? .off
+        let haptics = (defaults.object(forKey: Self.hapticFeedbackKey) as? Bool) ?? true
+        hapticFeedback = haptics
+        Haptics.isEnabled = haptics
         if let data = defaults.data(forKey: Self.excludedBundleIDsKey),
            let decoded = try? JSONDecoder().decode([String].self, from: data) {
             excludedBundleIDs = decoded.sorted()
