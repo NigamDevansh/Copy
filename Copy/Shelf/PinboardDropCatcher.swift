@@ -50,8 +50,8 @@ enum PinboardTabHitTest {
 ///
 /// Card → pinboard filing is not handled here: a card drag starts inside the card row's
 /// scroll view, and SwiftUI stops delivering drop updates once that drag crosses into the
-/// header, so the tabs never see it. The shelf's AppKit container (`ShelfClippingView` in
-/// `ShelfPanelController`) takes card drags instead.
+/// header, so the tabs never see it. The shelf's hosting view (`ShelfHostingView` in
+/// `ShelfPanelController.swift`) takes card drags instead.
 struct PinboardDropDelegate: DropDelegate {
     /// Pinboard tab frames in the same coordinate space this delegate's `.onDrop` uses.
     var tabFrames: () -> [Int64: CGRect]

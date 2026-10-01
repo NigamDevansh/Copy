@@ -810,7 +810,7 @@ final class ShelfViewModel {
     /// Handles a card (or a whole multi-selection) dropped onto a pinboard tab.
     /// `uuids` is one uuid for a single-card drag, or the ordered selection's uuids
     /// for a multi-selection drag (see `ShelfViewModel.multiDragProvider()`).
-    /// A card drag moved over the shelf (from `ShelfPanelController`'s AppKit drop target).
+    /// A card drag moved over the shelf (from `ShelfHostingView`, which tracks card drags in AppKit).
     /// Highlights the pinboard tab under `point` and returns whether there is one, which
     /// decides whether the pointer shows a copy badge.
     func cardDragMoved(to point: CGPoint) -> Bool {

@@ -64,7 +64,7 @@ struct ShelfRootView: View {
         // `.onDrop` never establishes a working drop region on the small pills inside this
         // borderless non-activating glass panel. The delegate maps the drop location to the
         // tab under it using each tab's frame, collected via PinboardTabFramesKey below.
-        // Card → pinboard filing uses the same frames, from AppKit (see `ShelfClippingView`).
+        // Card → pinboard filing uses the same frames, from AppKit (see `ShelfHostingView`).
         .coordinateSpace(name: "shelfRoot")
         .onPreferenceChange(PinboardTabFramesKey.self) {
             viewModel.pinboardTabFrames = $0
