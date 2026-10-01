@@ -59,10 +59,14 @@ struct PinboardDropDelegate: DropDelegate {
         return frames.min(by: { abs($0.value.midX - point.x) < abs($1.value.midX - point.x) })?.key
     }
 
+    /// Accepts any card or pinboard drag, wherever it enters. SwiftUI asks this once, as
+    /// the drag enters the shelf, and ignores the rest of the session on `false`. A card
+    /// drag starts over the cards, never over a tab, so gating on the location here
+    /// rejected every card drag. The location is enforced where it belongs instead:
+    /// `dropUpdated` cancels off-tab and `performDrop` ignores a release off-tab.
     func validateDrop(info: DropInfo) -> Bool {
-        let hasSupportedPayload = info.hasItemsConforming(to: [UTType.copyPinboard])
+        let result = info.hasItemsConforming(to: [UTType.copyPinboard])
             || info.hasItemsConforming(to: [UTType.copyItem])
-        let result = hasSupportedPayload && pinboard(at: info.location) != nil
         dndLog("validateDrop at \(info.location) copyItem=\(info.hasItemsConforming(to: [UTType.copyItem])) copyPinboard=\(info.hasItemsConforming(to: [UTType.copyPinboard])) tab=\(String(describing: pinboard(at: info.location))) tabFrames=\(tabFrames()) -> \(result)") // DnD-DEBUG
         return result
     }
