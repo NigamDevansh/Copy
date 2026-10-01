@@ -56,17 +56,20 @@ final class AppCoordinator {
             floatingShelf: settings.floatingShelf) { [weak self] in
             guard let self else { return NSView() }
             let host = ShelfHostingView(rootView: ShelfRootView(viewModel: self.shelfViewModel))
-            // Card → pinboard drags are tracked by the host in AppKit and resolved against
-            // the tab frames the view model holds (see `ShelfHostingView`).
-            host.isCardDragActive = { [weak self] in self?.shelfViewModel.isCardDragActive ?? false }
-            host.onCardDragMoved = { [weak self] point in
-                self?.shelfViewModel.cardDragMoved(to: point) ?? false
+            // Drags onto the pinboard tabs (cards to file, tabs to reorder) are tracked by
+            // the host in AppKit and resolved against the tab frames the view model holds
+            // (see `ShelfHostingView`).
+            host.activeShelfDrag = { [weak self] in self?.shelfViewModel.activeShelfDrag }
+            host.onDragMoved = { [weak self] kind, point in
+                self?.shelfViewModel.shelfDragMoved(kind, to: point) ?? false
             }
-            host.onCardDragEnded = { [weak self] in
-                self?.shelfViewModel.cardDragEnded()
-            }
+            host.onDragExited = { [weak self] in self?.shelfViewModel.shelfDragExited() }
+            host.onDragEnded = { [weak self] in self?.shelfViewModel.shelfDragEnded() }
             host.onCardDrop = { [weak self] point, uuids in
                 self?.shelfViewModel.fileDroppedCards(uuids, at: point) ?? false
+            }
+            host.onPinboardDrop = { [weak self] point, id in
+                self?.shelfViewModel.moveDroppedPinboard(id, at: point) ?? false
             }
             return host
         }
