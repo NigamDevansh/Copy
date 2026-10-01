@@ -346,6 +346,7 @@ private struct ShelfTabs: View {
                     }
                 }
                 .onDrag {
+                    viewModel.pinboardDragStarted()
                     guard let id = pinboard.id else { return NSItemProvider() }
                     let data = Data(String(id).utf8)
                     let provider = NSItemProvider()

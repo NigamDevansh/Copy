@@ -55,7 +55,20 @@ final class AppCoordinator {
             theme: settings.shelfTheme,
             floatingShelf: settings.floatingShelf) { [weak self] in
             guard let self else { return NSView() }
-            return NSHostingView(rootView: ShelfRootView(viewModel: self.shelfViewModel))
+            let host = ShelfHostingView(rootView: ShelfRootView(viewModel: self.shelfViewModel))
+            // Card → pinboard drags are tracked by the host in AppKit and resolved against
+            // the tab frames the view model holds (see `ShelfHostingView`).
+            host.isCardDragActive = { [weak self] in self?.shelfViewModel.isCardDragActive ?? false }
+            host.onCardDragMoved = { [weak self] point in
+                self?.shelfViewModel.cardDragMoved(to: point) ?? false
+            }
+            host.onCardDragEnded = { [weak self] in
+                self?.shelfViewModel.cardDragEnded()
+            }
+            host.onCardDrop = { [weak self] point, uuids in
+                self?.shelfViewModel.fileDroppedCards(uuids, at: point) ?? false
+            }
+            return host
         }
         controller.onDidHide = { [weak self] in
             self?.shelfViewModel.clearTransientState()
@@ -338,17 +351,6 @@ final class AppCoordinator {
                   viewModel.isSearchFieldFocused,
                   viewModel.searchQuery.text.isEmpty else { return }
             viewModel.endSearchEditingRequested = true
-        }
-        // Card → pinboard drags are tracked in AppKit by the panel and resolved against
-        // the tab frames the view model holds (see `ShelfClippingView`).
-        controller.onCardDragMoved = { [weak self] point in
-            self?.shelfViewModel.cardDragMoved(to: point) ?? false
-        }
-        controller.onCardDragEnded = { [weak self] in
-            self?.shelfViewModel.cardDragEnded()
-        }
-        controller.onCardDrop = { [weak self] point, uuids in
-            self?.shelfViewModel.fileDroppedCards(uuids, at: point) ?? false
         }
         controller.onForceClick = { [weak self] in
             // Force-click acts on the card under the cursor: editable kinds (text/rich

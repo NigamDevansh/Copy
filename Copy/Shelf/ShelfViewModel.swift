@@ -98,7 +98,16 @@ final class ShelfViewModel {
     @ObservationIgnored var pinboardTabFrames: [Int64: CGRect] = [:]
     /// The uuid(s) the most recent card drag carried, recorded by `dragProvider`. A fallback
     /// for `fileDroppedCards` when the drop's pasteboard can't hand the payload over yet.
+    /// Emptied once that drag is filed, or when a pinboard tab drag starts.
     @ObservationIgnored private var lastDraggedCardUUIDs: [String] = []
+
+    /// Whether a card drag started in the shelf may still be in progress.
+    var isCardDragActive: Bool { !lastDraggedCardUUIDs.isEmpty }
+
+    /// A pinboard tab drag started, so no card drag is in progress.
+    func pinboardDragStarted() {
+        lastDraggedCardUUIDs = []
+    }
     /// Set by a force-click (which fires before the click's own mouse-up resolves) so the
     /// release doesn't then paste the card. Consumed by the next `handleCardClick`.
     @ObservationIgnored var suppressNextCardPaste = false
@@ -823,6 +832,7 @@ final class ShelfViewModel {
     func fileDroppedCards(_ payloadUUIDs: [String]?, at point: CGPoint) -> Bool {
         dropTargetedPinboardID = nil
         let uuids = payloadUUIDs ?? lastDraggedCardUUIDs
+        lastDraggedCardUUIDs = []
         dndLog("card drop: payload \(payloadUUIDs == nil ? "unavailable, using last drag" : "read") (\(uuids.count) card(s))") // DnD-DEBUG
         guard let id = PinboardTabHitTest.pinboard(at: point, in: pinboardTabFrames),
               let pinboard = pinboards.first(where: { $0.id == id }) else {
@@ -1002,6 +1012,9 @@ final class ShelfViewModel {
             selection.click(item.uuid)
         }
         dndLog("drag started: card \(item.uuid) kind=\(item.kind) selected=\(selection.selected.count)") // DnD-DEBUG
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { // DnD-DEBUG
+            dndLog("drag pasteboard types: \((NSPasteboard(name: .drag).types ?? []).map(\.rawValue))") // DnD-DEBUG
+        } // DnD-DEBUG
         if selection.selected.count > 1 {
             lastDraggedCardUUIDs = orderedSelectedItems.map(\.uuid)
             return multiDragProvider()
