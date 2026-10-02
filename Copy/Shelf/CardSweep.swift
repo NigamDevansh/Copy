@@ -29,9 +29,6 @@ final class CardSweep {
 
     /// The selection rectangle, in content space, while a sweep is in progress.
     private(set) var rect: CGRect?
-    /// -1 or 1 while the pointer is held at the row's leading or trailing edge, where the
-    /// row scrolls to bring more cards under the sweep; 0 otherwise.
-    private(set) var edgeScroll = 0
 
     @ObservationIgnored private var cardFrames: [String: CGRect] = [:]
     @ObservationIgnored private var contentOrigin: CGPoint = .zero
@@ -41,9 +38,18 @@ final class CardSweep {
     @ObservationIgnored private var start: CGPoint?
     /// The pointer's latest position, in the shelf's space.
     @ObservationIgnored private var pointer: CGPoint = .zero
+    /// The card row's scroll view, scrolled directly while the pointer is held at an edge.
+    @ObservationIgnored weak var scrollView: NSScrollView?
+    /// Points to scroll per tick while the pointer is in an edge zone: negative toward
+    /// the leading edge, positive toward the trailing one, 0 when it is in neither.
+    @ObservationIgnored private var edgeScrollStep: CGFloat = 0
+    @ObservationIgnored private var edgeScrollTimer: Timer?
 
     /// How close to the row's edge the pointer has to be for the row to scroll.
-    private static let edgeScrollMargin: CGFloat = 28
+    private static let edgeScrollMargin: CGFloat = 44
+    /// The fastest the row scrolls, in points per tick (60 ticks a second), reached when
+    /// the pointer is at or past the edge. It eases in from the start of the edge zone.
+    private static let edgeScrollMaxStep: CGFloat = 16
 
     var isActive: Bool { start != nil }
 
@@ -87,7 +93,7 @@ final class CardSweep {
     func end() {
         start = nil
         rect = nil
-        edgeScroll = 0
+        setEdgeScrollStep(0)
     }
 
     /// The selection rectangle in the shelf's space, for drawing over the whole shelf.
@@ -110,19 +116,6 @@ final class CardSweep {
             .min(by: { abs($0.value.midX - x) < abs($1.value.midX - x) })?.key
     }
 
-    /// While the pointer is held at an edge: the next card past that edge, in `order`, to
-    /// scroll into view. Nil when there is none or the pointer isn't at an edge.
-    func scrollTarget(in order: [String]) -> String? {
-        guard edgeScroll != 0 else { return nil }
-        let fullyVisible = order.indices.filter { index in
-            guard let frame = cardFrames[order[index]] else { return false }
-            return frame.minX + contentOrigin.x >= 0 && frame.maxX + contentOrigin.x <= viewportFrame.width
-        }
-        let next = edgeScroll > 0 ? fullyVisible.last.map { $0 + 1 } : fullyVisible.first.map { $0 - 1 }
-        guard let next, order.indices.contains(next) else { return nil }
-        return order[next]
-    }
-
     private func contentPoint(_ shelfPoint: CGPoint) -> CGPoint {
         CGPoint(x: shelfPoint.x - viewportFrame.minX - contentOrigin.x,
                 y: shelfPoint.y - viewportFrame.minY - contentOrigin.y)
@@ -133,13 +126,45 @@ final class CardSweep {
         let current = contentPoint(pointer)
         rect = CGRect(x: min(start.x, current.x), y: min(start.y, current.y),
                       width: abs(current.x - start.x), height: abs(current.y - start.y))
-        if pointer.x > viewportFrame.maxX - Self.edgeScrollMargin {
-            edgeScroll = 1
-        } else if pointer.x < viewportFrame.minX + Self.edgeScrollMargin {
-            edgeScroll = -1
+        // How far into an edge zone the pointer is: 0 at the zone's start, 1 at the edge.
+        let trailing = (pointer.x - (viewportFrame.maxX - Self.edgeScrollMargin)) / Self.edgeScrollMargin
+        let leading = ((viewportFrame.minX + Self.edgeScrollMargin) - pointer.x) / Self.edgeScrollMargin
+        if trailing > 0 {
+            setEdgeScrollStep(min(trailing, 1) * Self.edgeScrollMaxStep)
+        } else if leading > 0 {
+            setEdgeScrollStep(-min(leading, 1) * Self.edgeScrollMaxStep)
         } else {
-            edgeScroll = 0
+            setEdgeScrollStep(0)
         }
+    }
+
+    /// Runs the edge-scroll timer only while there is something to scroll.
+    private func setEdgeScrollStep(_ step: CGFloat) {
+        edgeScrollStep = step
+        if step == 0 {
+            edgeScrollTimer?.invalidate()
+            edgeScrollTimer = nil
+        } else if edgeScrollTimer == nil {
+            let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated { self?.edgeScrollTick() }
+            }
+            // `.common` so it keeps firing while the mouse is held down in the drag.
+            RunLoop.main.add(timer, forMode: .common)
+            edgeScrollTimer = timer
+        }
+    }
+
+    /// Scrolls the row a small step, the way a trackpad scroll would: continuous and
+    /// unanimated, so the rectangle and the selection follow it frame by frame (through
+    /// `contentMoved`) instead of chasing an animation.
+    private func edgeScrollTick() {
+        guard let scrollView, let document = scrollView.documentView else { return }
+        let clip = scrollView.contentView
+        let maxX = max(0, document.frame.width - clip.bounds.width)
+        let x = min(max(clip.bounds.origin.x + edgeScrollStep, 0), maxX)
+        guard x != clip.bounds.origin.x else { return }
+        clip.setBoundsOrigin(NSPoint(x: x, y: clip.bounds.origin.y))
+        scrollView.reflectScrolledClipView(clip)
     }
 }
 
@@ -150,18 +175,49 @@ struct CardSweepRectangle: View {
     let sweep: CardSweep
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            Color.clear
-            if let rect = sweep.rectInShelf {
-                // Neutral, like Finder's: the cards' own selected look carries the result.
-                Rectangle()
-                    .fill(Color.primary.opacity(0.08))
-                    .overlay(Rectangle().strokeBorder(Color.primary.opacity(0.28), lineWidth: 1))
-                    .frame(width: rect.width, height: rect.height)
-                    .offset(x: rect.minX, y: rect.minY)
-            }
+        // Drawn as a path in the shelf's coordinates rather than as a sized, offset view:
+        // once the row has scrolled, the rectangle reaches far past the shelf's edge, and
+        // a view wider than its container gets re-centered by layout, which pulled the
+        // rectangle away from the pointer.
+        // Neutral, like Finder's: the cards' own selected look carries the result.
+        let outline = Path(sweep.rectInShelf ?? .zero)
+        ZStack {
+            outline.fill(Color.primary.opacity(0.08))
+            outline.stroke(Color.primary.opacity(0.28), lineWidth: 1)
         }
+        // Never animated: it has to sit exactly under the pointer, and an animation picked
+        // up from elsewhere (a scroll, a selection change) would leave it trailing behind.
+        .transaction { $0.animation = nil }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+}
+
+/// Hands the card row's `NSScrollView` to `CardSweep`. Sits in the row's content, where
+/// AppKit's `enclosingScrollView` is the scroll view SwiftUI built for the row.
+struct CardRowScrollViewFinder: NSViewRepresentable {
+    let onFind: (NSScrollView?) -> Void
+
+    func makeNSView(context: Context) -> FinderView {
+        let view = FinderView()
+        view.onFind = onFind
+        return view
+    }
+
+    func updateNSView(_ nsView: FinderView, context: Context) {
+        nsView.onFind = onFind
+    }
+
+    final class FinderView: NSView {
+        var onFind: ((NSScrollView?) -> Void)?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            // The scroll view is this view's ancestor only once the hierarchy is assembled.
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.onFind?(self.enclosingScrollView)
+            }
+        }
     }
 }

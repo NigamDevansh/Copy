@@ -634,6 +634,9 @@ private struct ShelfItemsRow: View {
                     // enough to create the hit-testable NSView; `contentShape` alone (which
                     // affects gesture hit-testing, not AppKit scroll-wheel routing) wasn't.
                     .background(Color.black.opacity(0.001))
+                    // Gives the drag-select the row's scroll view, which it scrolls while
+                    // the pointer is held at an edge.
+                    .background(CardRowScrollViewFinder { viewModel.cardSweep.scrollView = $0 })
                     .coordinateSpace(name: CardSweep.contentSpace)
                     .onGeometryChange(for: CGPoint.self) {
                         $0.frame(in: .named(CardSweep.viewportSpace)).origin
@@ -646,16 +649,6 @@ private struct ShelfItemsRow: View {
                     viewModel.cardSweep.viewportFrame = $0
                 }
                 .onPreferenceChange(CardFramesKey.self) { viewModel.cardSweep.cardFramesChanged($0) }
-                // While the sweep is held at an edge, step the row along a card at a time.
-                .task(id: viewModel.cardSweep.edgeScroll) {
-                    while !Task.isCancelled, viewModel.cardSweep.edgeScroll != 0 {
-                        if let target = viewModel.cardSweep.scrollTarget(in: viewModel.items.map(\.uuid)) {
-                            let anchor: UnitPoint = viewModel.cardSweep.edgeScroll > 0 ? .trailing : .leading
-                            withAnimation(.linear(duration: 0.18)) { proxy.scrollTo(target, anchor: anchor) }
-                        }
-                        try? await Task.sleep(for: .milliseconds(180))
-                    }
-                }
                 .onChange(of: viewModel.selection.primary) { _, newPrimary in
                     // A sweep moves the primary with the pointer; centering on it would
                     // scroll the row out from under the rectangle.
