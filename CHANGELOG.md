@@ -5,6 +5,34 @@ All notable changes to Copy are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-10-01
+
+Your shelf, your way: light or dark, attached or floating, with a tap you can feel.
+
+### Added
+
+- Appearance choices under Settings, General: follow the system, or keep the shelf light or dark whatever your Mac is doing. The dark shelf uses Copy's electric blue accent.
+- A floating shelf style. It lifts off the bottom edge with a little space around it and rounds every corner. Edge attached stays the default.
+- Haptic feedback on the trackpad. A light tap when you switch tabs, start a drag, or a dragged card reaches a pinboard; a firmer click when the card is filed, a tab is reordered, or the shelf opens; a short tick when you paste, favorite, delete, or undo. Turn it off under Settings, General, Haptic Feedback.
+- Dragging a card over a pinboard tab now shows a small callout naming the board it will land in. It follows the drag along the row and confirms the drop for a moment afterwards.
+- Reorder pinboards by dragging their tabs.
+- Favorites can be turned off under Settings. Your saved stars are kept for when you turn them back on.
+- Link cards show their title and favicon in a cleaner layout, and previews that were missed are fetched again.
+- A demo video, in `docs/assets/video`, with its Remotion source in `video/`.
+
+### Changed
+
+- The glass is dimmed in dark appearance so tab names, badges, and timestamps read clearly over bright windows behind the shelf. Unselected tabs are a touch brighter too.
+- Clipboard prose uses the system font on cards; code keeps its monospace.
+- <kbd>Space</kbd> previews size themselves to the image or text they show.
+- Private system apps are excluded from history by default on new installs.
+
+### Fixed
+
+- Dragging a card onto a pinboard tab files it there again. It had stopped working after tab reordering landed.
+- The color picker closes after a color is created, and when the shelf closes.
+- The search help popover closes when you click outside it.
+
 ## [0.1.7] - 2026-09-11
 
 The keyboard shortcuts you already expect, image files that look like images, and a quieter close.

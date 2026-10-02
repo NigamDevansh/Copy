@@ -101,6 +101,14 @@ struct GeneralSettings: View {
             }
 
             Section {
+                Toggle("Haptic Feedback", isOn: $settings.hapticFeedback)
+            } footer: {
+                Text("A light tap on the trackpad when you switch tabs, file a card on a pinboard, or paste.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
                 Toggle("Launch at Login", isOn: launchAtLoginBinding)
             } footer: {
                 if let launchAtLoginError {

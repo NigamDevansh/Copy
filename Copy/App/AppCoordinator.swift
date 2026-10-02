@@ -121,11 +121,11 @@ final class AppCoordinator {
                let digit = chars.first, let digitValue = digit.wholeNumberValue,
                (1...9).contains(digitValue) {
                 if digitValue == 1 {
-                    viewModel.tab = .history
+                    viewModel.selectTab(.history)
                 } else {
                     let index = digitValue - 2
                     if viewModel.pinboards.indices.contains(index), let id = viewModel.pinboards[index].id {
-                        viewModel.tab = .pinboard(id)
+                        viewModel.selectTab(.pinboard(id))
                     }
                 }
                 return true
@@ -633,14 +633,14 @@ final class AppCoordinator {
         switch shelfViewModel.tab {
         case .history:
             if let first = pinboards.first, let id = first.id {
-                shelfViewModel.tab = .pinboard(id)
+                shelfViewModel.selectTab(.pinboard(id))
             }
         case .pinboard(let currentID):
             let nextIndex = (pinboards.firstIndex(where: { $0.id == currentID }) ?? -1) + 1
             if pinboards.indices.contains(nextIndex), let id = pinboards[nextIndex].id {
-                shelfViewModel.tab = .pinboard(id)
+                shelfViewModel.selectTab(.pinboard(id))
             } else {
-                shelfViewModel.tab = .history
+                shelfViewModel.selectTab(.history)
             }
         }
     }
@@ -737,6 +737,7 @@ final class AppCoordinator {
     /// and have the frontmost app receive it automatically.
     private func pasteNextViaEngine() {
         guard placeNextStackItem() else { return }
+        Haptics.confirm()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             PasteStackEngine.postMarkedPasteKeystroke()
         }
@@ -750,6 +751,7 @@ final class AppCoordinator {
     /// which the OS delivers directly, no synthesis needed — do the actual pasting.
     func pasteNextFromStack() {
         guard placeNextStackItem() else { return }
+        Haptics.confirm()
         HUD.show("Ready to paste. Press Command V.")
     }
 

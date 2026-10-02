@@ -19,6 +19,16 @@ deliberately quiet: no account, no cloud, no telemetry.
   <b><a href="https://tarikbc.github.io/Copy/">Website</a> &nbsp;·&nbsp; <a href="https://github.com/tarikbc/Copy/releases/latest">Download</a> &nbsp;·&nbsp; <a href="#install">Install</a> &nbsp;·&nbsp; <a href="#keyboard-shortcuts">Shortcuts</a></b>
 </p>
 
+## See it in action
+
+<p align="center">
+  <a href="docs/assets/video/copy-showcase.mp4"><img src="docs/assets/img/showcase-poster.png" alt="Watch the one minute Copy demo" width="820"></a>
+</p>
+
+<p align="center">
+  <b><a href="docs/assets/video/copy-showcase.mp4">Watch the one minute demo</a></b> (MP4, 11 MB). The video is built from code in <a href="video/">video/</a>.
+</p>
+
 ## Why Copy
 
 The built-in clipboard remembers one thing. Copy remembers all of it, as a visual shelf
@@ -35,9 +45,13 @@ including the text inside screenshots.
 - Space bar previews a card before you commit, Quick Look for files
 - Drag any card out of the shelf, or select several and drag them out together
 - Liquid Glass on macOS 26, with a solid, legible fallback (and Reduce Transparency support)
+- Follow the system appearance, or keep the shelf light or dark; attach it to the screen edge or let it float
+- Haptic feedback on the trackpad when you switch tabs, file a card, paste, and more (optional)
 
 **Organizing**
 - Pinboards with colors and any emoji; drag a card onto a tab to keep it, switch with <kbd>⌘1</kbd>–<kbd>⌘9</kbd>
+- A callout names the board a dragged card will land in; reorder pinboards by dragging their tabs
+- Favorites keep starred cards at the front of the shelf, and can be switched off entirely
 - Search scoped to the active pinboard, or your whole history
 - Click a card's title to rename it in place; multi-select for bulk actions
 - Drawer-first: reach Settings, Updates, and every action from inside the shelf, and

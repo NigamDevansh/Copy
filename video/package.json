@@ -1,0 +1,24 @@
+{
+  "name": "copy-showcase-video",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Remotion motion-graphics showcase video for Copy, the macOS clipboard manager.",
+  "scripts": {
+    "preview": "remotion studio",
+    "render": "remotion render CopyShowcase out/copy-showcase.mp4",
+    "poster": "remotion still Poster out/poster.png",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.532",
+    "@remotion/fonts": "^4.0.532",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.532"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "typescript": "^7.0.2"
+  }
+}

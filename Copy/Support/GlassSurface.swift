@@ -80,12 +80,25 @@ struct GlassSurfaceCorners: Equatable {
 private struct GlassSurfaceModifier: ViewModifier {
     let corners: GlassSurfaceCorners
     @StateObject private var reduceTransparency = ReduceTransparencyObserver()
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// In dark appearance the glass is dimmed so text on it reads against anything
+    /// behind the shelf — Liquid Glass over a bright window otherwise washes out the
+    /// secondary labels (tabs, badges, timestamps). Light glass is left as is: it is
+    /// already a light surface under dark text.
+    private var isDark: Bool { colorScheme == .dark }
+    private static let darkScrim = Color.black.opacity(0.32)
 
     func body(content: Content) -> some View {
         if #available(macOS 26, *), !reduceTransparency.isReduced {
-            content.glassEffect(.regular, in: glassShape)
+            content.glassEffect(isDark ? .regular.tint(Self.darkScrim) : .regular, in: glassShape)
         } else {
-            content.background(VisualEffectMaterial(corners: corners))
+            content.background {
+                ZStack {
+                    VisualEffectMaterial(corners: corners)
+                    if isDark { glassShape.fill(Self.darkScrim) }
+                }
+            }
         }
     }
 
