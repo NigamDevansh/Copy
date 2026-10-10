@@ -20,6 +20,11 @@ struct ItemCardView: View {
     var searchQuery: String = ""
     /// Briefly true after a "Show in History" jump lands on this card — draws an accent ring.
     var isFlashing: Bool = false
+    /// `SettingsStore.hideSecrets`: API keys and other secrets in the card's text are drawn
+    /// masked unless `secretsRevealed`. The pasted and dragged content is always the real text.
+    var hideSecrets: Bool = false
+    /// The user asked to see this card's secrets (the hover eye button, `onToggleSecrets`).
+    var secretsRevealed: Bool = false
     /// The card's ⌥-digit paste number (1-9), shown as a badge while ⌥ is held; `nil` hides it.
     var pasteNumber: Int? = nil
     /// Whether the "Show in History" context item applies (a search/filter is active, or the
@@ -42,6 +47,7 @@ struct ItemCardView: View {
     let onCommitInlineRename: (String) -> Void
     let onCancelInlineRename: () -> Void
     let onToggleFavorite: () -> Void
+    var onToggleSecrets: () -> Void = {}
     let onAddToPinboard: (Int64) -> Void
     let onRemoveFromPinboard: () -> Void
     let onAddToPasteStack: () -> Void
@@ -65,6 +71,24 @@ struct ItemCardView: View {
         case .text, .richText, .link: return true
         case .image, .file, .color: return false
         }
+    }
+
+    private var masksSecrets: Bool { hideSecrets && !secretsRevealed }
+
+    /// How much of the text a card body ever shows.
+    private static let bodyCap = 1_500
+
+    /// The text the card draws: the first `cap` characters, with secrets masked when
+    /// `masksSecrets`. Masking keeps the length, so highlight tokens still line up.
+    private func displayText(_ text: String, cap: Int) -> String {
+        masksSecrets ? SecretDetector.maskedPrefix(text, count: cap) : String(text.prefix(cap))
+    }
+
+    /// Whether the card's visible text has a secret in it, which is what earns it the eye
+    /// button. Only asked while hovering.
+    private var hasSecret: Bool {
+        guard hideSecrets, isEditable, let text = item.plainText else { return false }
+        return SecretDetector.maskedPrefix(text, count: Self.bodyCap) != String(text.prefix(Self.bodyCap))
     }
 
     /// File URL(s) still on disk for this item, used to gate the "Quick Look" menu
@@ -166,6 +190,8 @@ struct ItemCardView: View {
             if isHovering && !isInlineRenaming {
                 CardHoverActions(favoritesEnabled: favoritesEnabled, isFavorite: item.isFavorite,
                                  onToggleFavorite: onToggleFavorite,
+                                 secretsRevealed: hasSecret ? secretsRevealed : nil,
+                                 onToggleSecrets: onToggleSecrets,
                                  // Only offer unpin while viewing a pinboard, where the card
                                  // actually belongs to one it can be removed from.
                                  onUnpin: currentPinboardID != nil ? onRemoveFromPinboard : nil,
@@ -262,7 +288,7 @@ struct ItemCardView: View {
     private var dragPreview: some View {
         HStack(spacing: 6) {
             dragPreviewGlyph
-            Text(item.displayTitle)
+            Text(item.displayTitle(hidingSecrets: masksSecrets))
                 .font(.system(size: 12, weight: .medium))
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -349,9 +375,9 @@ struct ItemCardView: View {
     /// drawn on screen.
     @ViewBuilder
     private func codeAwareBody(text: String, cap: Int) -> some View {
-        let capped = String(text.prefix(cap))
+        // Tokens come from the real text; the masked text is the same length, so they fit.
         let highlight = CodeHighlightCache.shared.result(for: text, uuid: item.uuid, cap: cap)
-        let display = Self.preservingIndentation(capped)
+        let display = Self.preservingIndentation(displayText(text, cap: cap))
         if highlight.language != nil {
             highlightedText(display, tokens: highlight.tokens)
                 .font(.system(size: 12, design: .monospaced))
@@ -381,7 +407,7 @@ struct ItemCardView: View {
         if let hex = HexColor.normalized(item.plainText ?? "") {
             colorSwatchBody(hex)
         } else {
-            codeAwareBody(text: item.plainText ?? "", cap: 1_500)
+            codeAwareBody(text: item.plainText ?? "", cap: Self.bodyCap)
                 .font(Tokens.cardBody)
                 .lineLimit(bodyLineLimit(standard: 11, compact: 6))
                 .multilineTextAlignment(.leading)
@@ -457,7 +483,7 @@ struct ItemCardView: View {
                         .multilineTextAlignment(.leading)
                 }
                 // Give the URL the remaining body lines while keeping the footer visible.
-                Text(String((item.plainText ?? "").prefix(1_500)))
+                Text(displayText(item.plainText ?? "", cap: Self.bodyCap))
                     .font(Tokens.bodyMono)
                     .foregroundStyle(.secondary)
                     .lineLimit(bodyLineLimit(standard: 8, compact: 3))
@@ -651,12 +677,17 @@ private struct CardClickGesture: ViewModifier {
 
 /// The floating action pill shown on card hover (see `ItemCardView`'s top-trailing
 /// overlay). Surfaces favorite and delete, the two high-value actions otherwise hidden
-/// in the right-click menu, plus unpin while viewing a pinboard. Stays a quiet affordance
-/// rather than a toolbar; the rest remains in the context menu and via drag.
+/// in the right-click menu, plus unpin while viewing a pinboard and, on a card with a
+/// masked secret, the eye that reveals it. Stays a quiet affordance rather than a
+/// toolbar; the rest remains in the context menu and via drag.
 private struct CardHoverActions: View {
     let favoritesEnabled: Bool
     let isFavorite: Bool
     let onToggleFavorite: () -> Void
+    /// Whether the card's secrets are showing; `nil` (and so no eye button) when the card
+    /// has none to hide.
+    var secretsRevealed: Bool? = nil
+    var onToggleSecrets: () -> Void = {}
     /// Removes the card from the pinboard currently being viewed. `nil` (and so hidden)
     /// outside a pinboard, where there's nothing to unpin from.
     let onUnpin: (() -> Void)?
@@ -664,6 +695,12 @@ private struct CardHoverActions: View {
 
     var body: some View {
         HStack(spacing: 1) {
+            if let secretsRevealed {
+                IconButton(systemName: secretsRevealed ? "eye.slash" : "eye",
+                           fontSize: 11, size: CGSize(width: 22, height: 22),
+                           help: secretsRevealed ? "Hide secrets" : "Show secrets",
+                           action: onToggleSecrets)
+            }
             if favoritesEnabled {
                 IconButton(systemName: isFavorite ? "star.fill" : "star",
                            fontSize: 11, size: CGSize(width: 22, height: 22),

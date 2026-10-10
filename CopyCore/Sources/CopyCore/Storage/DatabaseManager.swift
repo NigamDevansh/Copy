@@ -106,6 +106,13 @@ public final class DatabaseManager {
                 t.add(column: "emoji", .text)
             }
         }
+        migrator.registerMigration("v4") { db in
+            // NULL = not checked yet. Left empty here on purpose: `ItemStore.pruneSecrets`
+            // fills it in, so existing history is only scanned if secret deletion is used.
+            try db.alter(table: "item") { t in
+                t.add(column: "containsSecret", .boolean)
+            }
+        }
         return migrator
     }
 }

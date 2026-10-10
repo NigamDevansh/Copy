@@ -14,6 +14,7 @@ final class AppCoordinator {
     private let persistQueue = DispatchQueue(label: "com.tarikbc.copy.persist", qos: .utility)
     private let saveErrors = SaveErrorReporter()
     private var retentionTimer: DispatchSourceTimer?
+    private var secretPruneTimer: DispatchSourceTimer?
     private(set) var isPaused = false
     /// True in a DEBUG build when the demo-mode flag is set (toggled from the status menu):
     /// runs against an isolated, reseeded demo database with curated mock data, and never
@@ -446,6 +447,10 @@ final class AppCoordinator {
             self?.shelfController.setHideDuringScreenSharing(hide)
             self?.pasteStackController.setHideDuringScreenSharing(hide)
         }
+        pasteStackModel.hideSecrets = settings.hideSecrets
+        settings.onHideSecretsChange = { [pasteStackModel] hide in
+            pasteStackModel.hideSecrets = hide
+        }
         settings.onFloatingShelfChange = { [weak self] floating in
             self?.shelfController.setFloatingShelf(floating)
         }
@@ -486,8 +491,12 @@ final class AppCoordinator {
     }
 
     func start() {
+        // Secret deletion runs in demo mode too: it is off unless the user chose a
+        // lifetime, and the demo database is rebuilt on every launch anyway.
+        settings.onSecretLifetimeChange = { [weak self] _ in self?.scheduleSecretPrune() }
+        scheduleSecretPrune()
         // Demo mode never captures the real clipboard (keeps the curated set pristine) and
-        // never prunes (its timestamps are backdated for the Time facets).
+        // never prunes by age (its timestamps are backdated for the Time facets).
         guard !isDemoMode else { return }
         monitor.start()
         runRetentionPrune()
@@ -552,6 +561,41 @@ final class AppCoordinator {
                 NSLog("Copy: retention pruning failed: \(error)")
             }
         }
+    }
+
+    /// Deletes items that contain a secret once they are older than
+    /// `SettingsStore.secretLifetime`, on the persist queue. Favorites and pinboard members
+    /// are spared (`ItemStore.pruneSecrets`).
+    private func runSecretPrune() {
+        guard let lifetime = settings.secretLifetime.interval else { return }
+        let cutoff = Date().addingTimeInterval(-lifetime)
+        let store = self.store
+        persistQueue.async {
+            do {
+                let deleted = try store.pruneSecrets(olderThan: cutoff)
+                if deleted > 0 {
+                    NSLog("Copy: secret deletion removed \(deleted) item(s)")
+                }
+            } catch {
+                NSLog("Copy: secret deletion failed: \(error)")
+            }
+        }
+    }
+
+    /// Applies the current `secretLifetime`: checks now, then again a few times within each
+    /// lifetime (every five minutes at most), so a secret outlives its limit only briefly.
+    /// With `.never` there is no timer at all.
+    private func scheduleSecretPrune() {
+        secretPruneTimer?.cancel()
+        secretPruneTimer = nil
+        guard let lifetime = settings.secretLifetime.interval else { return }
+        runSecretPrune()
+        let interval = min(5 * 60, max(15, lifetime / 4))
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + interval, repeating: interval, leeway: .seconds(5))
+        timer.setEventHandler { [weak self] in self?.runSecretPrune() }
+        timer.resume()
+        secretPruneTimer = timer
     }
 
     private func scheduleRetentionTimer() {

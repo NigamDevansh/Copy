@@ -18,6 +18,10 @@ public struct ClipItem: Codable, Equatable, Identifiable, FetchableRecord, Mutab
     public var isFavorite: Bool
     public var title: String?
     public var recognizedText: String?
+    /// Whether `SecretDetector` found an API key or other secret in the text. `nil` until
+    /// the secret clean-up has looked at the item (`ItemStore.pruneSecrets`), and again
+    /// after an edit, so a new or changed item is always re-checked.
+    public var containsSecret: Bool?
 
     public mutating func didInsert(_ inserted: InsertionSuccess) {
         id = inserted.rowID
