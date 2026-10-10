@@ -491,8 +491,7 @@ final class AppCoordinator {
     }
 
     func start() {
-        // Secret deletion runs in demo mode too: it is off unless the user chose a
-        // lifetime, and the demo database is rebuilt on every launch anyway.
+        // Secret deletion also runs in demo mode; its database is rebuilt every launch.
         settings.onSecretLifetimeChange = { [weak self] _ in self?.scheduleSecretPrune() }
         scheduleSecretPrune()
         // Demo mode never captures the real clipboard (keeps the curated set pristine) and
@@ -563,9 +562,7 @@ final class AppCoordinator {
         }
     }
 
-    /// Deletes items that contain a secret once they are older than
-    /// `SettingsStore.secretLifetime`, on the persist queue. Favorites and pinboard members
-    /// are spared (`ItemStore.pruneSecrets`).
+    /// Deletes secret items older than `secretLifetime`; favorites and pinboard items are kept.
     private func runSecretPrune() {
         guard let lifetime = settings.secretLifetime.interval else { return }
         let cutoff = Date().addingTimeInterval(-lifetime)
@@ -582,9 +579,7 @@ final class AppCoordinator {
         }
     }
 
-    /// Applies the current `secretLifetime`: checks now, then again a few times within each
-    /// lifetime (every five minutes at most), so a secret outlives its limit only briefly.
-    /// With `.never` there is no timer at all.
+    /// Checks now, then every five minutes at most. No timer when the lifetime is `.never`.
     private func scheduleSecretPrune() {
         secretPruneTimer?.cancel()
         secretPruneTimer = nil

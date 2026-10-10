@@ -20,10 +20,8 @@ struct ItemCardView: View {
     var searchQuery: String = ""
     /// Briefly true after a "Show in History" jump lands on this card — draws an accent ring.
     var isFlashing: Bool = false
-    /// `SettingsStore.hideSecrets`: API keys and other secrets in the card's text are drawn
-    /// masked unless `secretsRevealed`. The pasted and dragged content is always the real text.
+    /// Mask secrets in the card's text unless `secretsRevealed`. Pasting uses the real text.
     var hideSecrets: Bool = false
-    /// The user asked to see this card's secrets (the hover eye button, `onToggleSecrets`).
     var secretsRevealed: Bool = false
     /// The card's ⌥-digit paste number (1-9), shown as a badge while ⌥ is held; `nil` hides it.
     var pasteNumber: Int? = nil
@@ -75,17 +73,14 @@ struct ItemCardView: View {
 
     private var masksSecrets: Bool { hideSecrets && !secretsRevealed }
 
-    /// How much of the text a card body ever shows.
     private static let bodyCap = 1_500
 
-    /// The text the card draws: the first `cap` characters, with secrets masked when
-    /// `masksSecrets`. Masking keeps the length, so highlight tokens still line up.
+    /// Masking keeps the length, so highlight tokens still line up.
     private func displayText(_ text: String, cap: Int) -> String {
         masksSecrets ? SecretDetector.maskedPrefix(text, count: cap) : String(text.prefix(cap))
     }
 
-    /// Whether the card's visible text has a secret in it, which is what earns it the eye
-    /// button. Only asked while hovering.
+    /// Earns the card its eye button. Only evaluated while hovering.
     private var hasSecret: Bool {
         guard hideSecrets, isEditable, let text = item.plainText else { return false }
         return SecretDetector.maskedPrefix(text, count: Self.bodyCap) != String(text.prefix(Self.bodyCap))
@@ -375,7 +370,6 @@ struct ItemCardView: View {
     /// drawn on screen.
     @ViewBuilder
     private func codeAwareBody(text: String, cap: Int) -> some View {
-        // Tokens come from the real text; the masked text is the same length, so they fit.
         let highlight = CodeHighlightCache.shared.result(for: text, uuid: item.uuid, cap: cap)
         let display = Self.preservingIndentation(displayText(text, cap: cap))
         if highlight.language != nil {
@@ -677,15 +671,14 @@ private struct CardClickGesture: ViewModifier {
 
 /// The floating action pill shown on card hover (see `ItemCardView`'s top-trailing
 /// overlay). Surfaces favorite and delete, the two high-value actions otherwise hidden
-/// in the right-click menu, plus unpin while viewing a pinboard and, on a card with a
-/// masked secret, the eye that reveals it. Stays a quiet affordance rather than a
-/// toolbar; the rest remains in the context menu and via drag.
+/// in the right-click menu, plus unpin while viewing a pinboard and the eye that reveals
+/// a masked secret. Stays a quiet affordance rather than a toolbar; the rest remains in
+/// the context menu and via drag.
 private struct CardHoverActions: View {
     let favoritesEnabled: Bool
     let isFavorite: Bool
     let onToggleFavorite: () -> Void
-    /// Whether the card's secrets are showing; `nil` (and so no eye button) when the card
-    /// has none to hide.
+    /// `nil` hides the eye button: the card has no secret.
     var secretsRevealed: Bool? = nil
     var onToggleSecrets: () -> Void = {}
     /// Removes the card from the pinboard currently being viewed. `nil` (and so hidden)

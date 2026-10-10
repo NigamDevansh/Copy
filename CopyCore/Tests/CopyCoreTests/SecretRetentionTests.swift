@@ -1,8 +1,7 @@
 import XCTest
 @testable import CopyCore
 
-/// `ItemStore.pruneSecrets`: items holding a secret are deleted once they are older than
-/// the cutoff. Every key here is fake and assembled from pieces (see `SecretDetectorTests`).
+/// `ItemStore.pruneSecrets`. Every key here is fake (see `SecretDetectorTests`).
 final class SecretRetentionTests: XCTestCase {
     private let secret = "API_KEY=" + "sk" + "-proj-" + "FAKEfakeFAKEfake1234567890abcd"
     private let otherSecret = "gh" + "p_" + "abcdefghijklmnopqrstuvwxyz0123456789"

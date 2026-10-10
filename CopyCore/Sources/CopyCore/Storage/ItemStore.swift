@@ -665,14 +665,9 @@ public struct ItemStore {
         }
     }
 
-    /// Deletes items that contain a secret (`SecretDetector`) and were copied before
-    /// `cutoff`, sparing favorites and pinboard members like `prune`. The clock is
-    /// `createdAt`, when the item first landed in the shelf: pasting it or copying it
-    /// again later does not extend it.
-    ///
-    /// Items nobody has checked yet (`containsSecret` is NULL: new copies, edits, and the
-    /// whole history the first time this runs) are classified first, in batches so a long
-    /// history never holds the database for long.
+    /// Deletes items that contain a secret and were first copied before `cutoff`, sparing
+    /// favorites and pinboard members. Unchecked items (`containsSecret` NULL) are
+    /// classified first.
     @discardableResult
     public func pruneSecrets(olderThan cutoff: Date) throws -> Int {
         try classifyUncheckedItems()
@@ -688,8 +683,7 @@ public struct ItemStore {
         }
     }
 
-    /// Fills in `containsSecret` wherever it is still NULL. Only text can hold a secret the
-    /// detector reads, so every other kind is settled without looking at it.
+    /// Fills in `containsSecret` where it is NULL, in batches. Only text is scanned.
     private func classifyUncheckedItems() throws {
         let textKinds = [ItemKind.text, .richText, .link].map(\.rawValue)
         try writer.write { db in
@@ -699,7 +693,7 @@ public struct ItemStore {
                 """, arguments: StatementArguments(textKinds))
         }
         while true {
-            // Read and write in one transaction, so an edit can't slip in between.
+            // One transaction per batch, so an edit can't slip in between.
             let classified = try writer.write { db -> Int in
                 let rows = try Row.fetchAll(db, sql: """
                     SELECT id, plainText FROM item WHERE containsSecret IS NULL LIMIT ?

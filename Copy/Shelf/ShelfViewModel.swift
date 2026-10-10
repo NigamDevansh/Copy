@@ -101,9 +101,7 @@ final class ShelfViewModel {
     /// The uuid of the card the pointer is currently over, so a force-click can act on
     /// exactly the card under the cursor (set by `ItemCardView`'s hover callback).
     var hoveredItemID: String?
-    /// Cards whose secrets the user has chosen to see (by item uuid), while
-    /// `SettingsStore.hideSecrets` masks the rest. Forgotten when the shelf closes, so a
-    /// revealed key is hidden again the next time the shelf opens.
+    /// Cards (by uuid) whose secrets are shown. Cleared when the shelf closes.
     private(set) var revealedSecretIDs: Set<String> = []
     /// The pinboard tab a dragged tab would land beside, and on which side, so that tab
     /// shows its insertion edge. Driven by `ShelfHostingView` (see `shelfDragMoved`).
@@ -683,12 +681,11 @@ final class ShelfViewModel {
         if !searchQuery.isEmpty { refresh() }
     }
 
-    /// Whether `item`'s secrets are currently drawn masked.
     func hidesSecrets(in item: ClipItem) -> Bool {
         settings.hideSecrets && !revealedSecretIDs.contains(item.uuid)
     }
 
-    /// The eye button on a card or its preview: shows or re-hides that card's secrets.
+    /// The eye button on a card or its preview.
     func toggleSecretsRevealed(_ item: ClipItem) {
         if revealedSecretIDs.contains(item.uuid) {
             revealedSecretIDs.remove(item.uuid)

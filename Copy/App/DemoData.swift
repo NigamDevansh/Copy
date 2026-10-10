@@ -123,9 +123,7 @@ enum DemoData {
             from: notes, at: ago(28 * minute))
         try store.setTitle(itemID: checklistID, "Launch checklist")
 
-        // Secrets, to show Hide Secrets (`SecretDetector`) at work: an .env file, a bare
-        // token, a card number in a sentence and a URL carrying a token. All fake, and
-        // assembled from pieces so no secret scanner mistakes this file for a leak.
+        // Fake secrets to show Hide Secrets, assembled from pieces so secret scanners ignore them.
         let fakeOpenAIKey = "sk" + "-proj-" + "FAKEfakeFAKEfake1234567890abcd"
         let fakeStripeKey = "sk" + "_test_" + "FAKE0000FAKE0000FAKE0000"
         let fakeGitHubToken = "gh" + "p_" + "abcdefghijklmnopqrstuvwxyz0123456789"

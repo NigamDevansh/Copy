@@ -1,8 +1,7 @@
 import XCTest
 @testable import CopyCore
 
-/// Every key below is fake, and assembled from pieces so no secret scanner mistakes this
-/// file for a leak.
+/// Every key here is fake, assembled from pieces so secret scanners ignore it.
 final class SecretDetectorTests: XCTestCase {
     private let awsKey = "AKIA" + "IOSFODNN7EXAMPLE"
     private let githubToken = "gh" + "p_" + "abcdefghijklmnopqrstuvwxyz0123456789"
@@ -118,8 +117,7 @@ final class SecretDetectorTests: XCTestCase {
         }
     }
 
-    /// Code that merely mentions a secret-ish name must not be masked: these are
-    /// identifiers, labels, paths and references, not secret values.
+    /// Identifiers, labels, paths and references are not secret values.
     func testCodeThatOnlyNamesASecretIsLeftAlone() {
         for text in [
             #"let passwordLabel = "Enter your password""#,        // quoted, but prose
@@ -170,8 +168,7 @@ final class SecretDetectorTests: XCTestCase {
         XCTAssertEqual(SecretDetector.maskedPrefix("plain text", count: 5), "plain")
     }
 
-    /// A long unbroken run of key-like characters (a pasted base64 image, say) must not
-    /// send any rule into quadratic backtracking. Correct code takes milliseconds here.
+    /// Guards against quadratic backtracking on a long run of key-like characters.
     func testAHugeRunOfKeyLikeCharactersDoesNotHang() {
         let blob = String(repeating: "aGVsbG8gd29ybGQ", count: 20_000)   // 300k characters
         let started = Date()

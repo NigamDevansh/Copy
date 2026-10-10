@@ -107,8 +107,7 @@ public final class DatabaseManager {
             }
         }
         migrator.registerMigration("v4") { db in
-            // NULL = not checked yet. Left empty here on purpose: `ItemStore.pruneSecrets`
-            // fills it in, so existing history is only scanned if secret deletion is used.
+            // NULL = not checked yet; `ItemStore.pruneSecrets` fills it in.
             try db.alter(table: "item") { t in
                 t.add(column: "containsSecret", .boolean)
             }

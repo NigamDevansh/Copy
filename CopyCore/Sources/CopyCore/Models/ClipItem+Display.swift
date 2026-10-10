@@ -7,8 +7,7 @@ public extension ClipItem {
     /// The user-assigned `title` when set, otherwise `menuTitle`.
     var displayTitle: String { displayTitle(hidingSecrets: false) }
 
-    /// `menuTitle`, with any API key or other secret in it masked when `hidingSecrets`
-    /// (see `SecretDetector`).
+    /// `menuTitle`, masking secrets when `hidingSecrets`.
     func menuTitle(hidingSecrets: Bool) -> String {
         switch kind {
         case .image:
@@ -25,8 +24,7 @@ public extension ClipItem {
         }
     }
 
-    /// `displayTitle`, masking secrets in the derived title when `hidingSecrets`. A title
-    /// the user typed is shown as written.
+    /// `displayTitle`; a title the user typed is never masked.
     func displayTitle(hidingSecrets: Bool) -> String {
         title?.isEmpty == false ? title! : menuTitle(hidingSecrets: hidingSecrets)
     }

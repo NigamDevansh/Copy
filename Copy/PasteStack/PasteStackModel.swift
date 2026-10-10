@@ -25,8 +25,7 @@ final class PasteStackModel {
 
     let store: ItemStore
 
-    /// `SettingsStore.hideSecrets`, pushed by `AppCoordinator`: row titles mask API keys
-    /// and other secrets. A row has no reveal; the shelf card does.
+    /// Mirrors `SettingsStore.hideSecrets`: row titles mask secrets.
     var hideSecrets = true
 
     /// Bumped after an in-place edit so `PasteStackView` re-renders (the queue's uuids

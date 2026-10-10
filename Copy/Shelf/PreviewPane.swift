@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 struct PreviewPane: View {
     let item: ClipItem
     let store: ItemStore
-    /// `SettingsStore.hideSecrets`: secrets in the text are masked unless `secretsRevealed`.
+    /// Mask secrets in the text unless `secretsRevealed`.
     var hideSecrets: Bool = false
     var secretsRevealed: Bool = false
     var onToggleSecrets: () -> Void = {}
@@ -38,10 +38,9 @@ struct PreviewPane: View {
     /// the paste's actual size. Anything beyond the cap still renders (up to the
     /// existing 200k display cap below), just without color.
     private let highlightCap = 10_000
-    /// The most text the preview ever shows.
     private static let displayCap = 200_000
 
-    /// Whether the previewed text has a secret in it, which is what earns it the eye button.
+    /// Earns the preview its eye button.
     private var hasSecret: Bool {
         guard hideSecrets, let text = item.plainText else { return false }
         return SecretDetector.maskedPrefix(text, count: Self.displayCap) != String(text.prefix(Self.displayCap))
@@ -53,7 +52,7 @@ struct PreviewPane: View {
     /// Any remainder past the highlighted portion still renders, just as plain mono
     /// text, exactly as the whole thing did before this feature existed.
     private func codeAwarePreviewText(_ text: String) -> Text {
-        // Masking keeps the length, so tokens from the real text still fit the masked one.
+        // Masking keeps the length, so highlight tokens still line up.
         let displayText = hideSecrets && !secretsRevealed
             ? SecretDetector.maskedPrefix(text, count: Self.displayCap)
             : String(text.prefix(Self.displayCap))
@@ -97,7 +96,7 @@ struct PreviewPane: View {
                 }
                 .overlay(alignment: .topTrailing) {
                     if hasSecret {
-                        // Same pill as a card's hover actions, so the text can scroll under it.
+                        // Same pill as a card's hover actions.
                         IconButton(systemName: secretsRevealed ? "eye.slash" : "eye",
                                    fontSize: 11, size: CGSize(width: 22, height: 22),
                                    help: secretsRevealed ? "Hide secrets" : "Show secrets",

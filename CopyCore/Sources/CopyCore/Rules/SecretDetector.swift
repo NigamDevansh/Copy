@@ -1,35 +1,22 @@
 import Foundation
 
-/// Finds secrets in copied text (API keys, tokens, private keys, card numbers) so the app
-/// can show them masked. Masking is display-only: the stored item and what gets pasted are
-/// untouched.
-///
-/// Deliberately conservative, like `CodeDetector`: it prefers missing an unusual secret to
-/// masking ordinary text. It recognizes provider key formats by their fixed prefixes, and a
-/// generic `name = value` only where the shape is unambiguous: a quoted value, an
-/// ALL-CAPS `.env`-style name, or a URL query parameter. An unquoted lowercase
-/// `api_key=value` is skipped on purpose, because code (`login(password=user_password1)`)
-/// looks exactly like it.
+/// Finds secrets in copied text (API keys, tokens, private keys, card numbers) so they can
+/// be shown masked. Conservative on purpose: it would rather miss a secret than mask
+/// ordinary text, so an unquoted lowercase `api_key=value` is skipped (code looks the same).
 public enum SecretDetector {
-    /// The character a masked secret is drawn with.
     public static let maskCharacter: Character = "•"
 
-    /// Whether `text` contains anything `masked(_:)` would hide.
     public static func containsSecret(_ text: String) -> Bool {
         masked(text) != text
     }
 
-    /// `containsSecret` without the display cache, for scanning a whole history: caching
-    /// every item's text would only push out the entries the shelf is drawing.
+    /// `containsSecret` without the display cache, for scanning a whole history.
     public static func scan(_ text: String) -> Bool {
         computeMasked(text) != text
     }
 
-    /// `text` with the middle of each secret replaced by `maskCharacter`.
-    ///
-    /// The result always has the same length as `text`, in characters and in UTF-16 units:
-    /// every hidden character is ASCII and is swapped one-for-one. Syntax-highlight token
-    /// ranges computed against the original text therefore still line up with the masked one.
+    /// `text` with the middle of each secret replaced by `maskCharacter`. The length never
+    /// changes (characters and UTF-16), so highlight token ranges still line up.
     public static func masked(_ text: String) -> String {
         let key = text as NSString
         if let cached = cache.object(forKey: key) { return cached as String }
@@ -38,21 +25,20 @@ public enum SecretDetector {
         return result
     }
 
-    /// The first `count` characters of `text`, masked. Scans a little past the cutoff, so a
-    /// secret the cutoff slices in half is still recognized instead of showing its first part.
+    /// The first `count` characters, masked. Scans past the cutoff so a secret it slices
+    /// through is still caught.
     public static func maskedPrefix(_ text: String, count: Int) -> String {
         String(masked(String(text.prefix(count + cutoffMargin))).prefix(count))
     }
 
     // MARK: - Detection
 
-    /// How a matched secret is hidden.
     private enum Style {
-        /// Keep a few characters at each end, so a key is still recognizable.
+        /// Keep a few characters at each end.
         case token
-        /// Keep only the last four digits; separators stay.
+        /// Keep the last four digits.
         case card
-        /// Hide every character but keep the line breaks (a private key's body).
+        /// Hide everything but line breaks (a private key's body).
         case block
     }
 
@@ -64,7 +50,7 @@ public enum SecretDetector {
     }
 
     private static let cutoffMargin = 4_096
-    /// Bounds the work on a huge paste; text past this is left as it is.
+    /// Text past this is not scanned.
     private static let scanLimit = 250_000
     private static let maskUnit = maskCharacter.utf16.first!
 
@@ -74,13 +60,11 @@ public enum SecretDetector {
         return cache
     }()
 
-    /// Names that mark a value as a secret, for the generic `name = value` rules.
+    /// Names that mark a `name = value` as a secret.
     private static let secretName = "(?:api[_-]?key|secret|token|passw(?:or)?d)"
-    /// What a generic unquoted value may contain. No `.`, `(`, `&` or `$`: those are
-    /// property accesses, calls, the next URL parameter and variable references.
+    /// No `.`, `(`, `&` or `$`: property accesses, calls, URL separators, variables.
     private static let bareValue = "[A-Za-z0-9_+/=~!@#%^*-]"
-    /// A generic value must contain a letter and a digit, and not be a path, a variable
-    /// reference or a URL. `valueClass` is the character class the value is made of.
+    /// Needs a letter and a digit, and must not be a path, variable or URL.
     private static func looksLikeSecret(_ valueClass: String) -> String {
         "(?![/~.$]|https?:)(?=\(valueClass)*[A-Za-z])(?=\(valueClass)*[0-9])"
     }
@@ -88,12 +72,12 @@ public enum SecretDetector {
     private static let rules: [Rule] = {
         func rule(_ pattern: String, group: Int = 0, style: Style = .token,
                   options: NSRegularExpression.Options = []) -> Rule {
-            // The patterns are literals, so a failure here is a typo caught by the tests.
+            // Literal patterns: a failure is a typo the tests catch.
             Rule(regex: try! NSRegularExpression(pattern: pattern, options: options), group: group, style: style)
         }
         let quotedValue = "[\\x21\\x23-\\x26\\x28-\\x7E]"   // printable ASCII except quotes
         return [
-            // Provider formats, identified by their fixed prefix.
+            // Provider formats, by prefix.
             rule("\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b"),                               // AWS access key ID
             rule("\\bgh[pousr]_[A-Za-z0-9]{36,}\\b"),                              // GitHub token
             rule("\\bgithub_pat_[A-Za-z0-9_]{50,}\\b"),                            // GitHub fine-grained token
@@ -107,16 +91,14 @@ public enum SecretDetector {
             rule("\\beyJ[A-Za-z0-9_-]{8,}\\.eyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}"), // JWT
             rule("\\bbearer\\s+(?=[A-Za-z0-9._~+/=-]*[0-9])([A-Za-z0-9._~+/=-]{20,})",
                  group: 1, options: [.caseInsensitive]),
-            // A private key: hide the body, keep the BEGIN/END lines. An unterminated block
-            // (the cutoff landed inside it) is hidden to the end.
+            // Private key: hide the body (to the end if unterminated), keep BEGIN/END.
             rule("-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----([\\s\\S]*?)(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|\\z)",
                  group: 1, style: .block),
-            // name = "value", in any language or config format.
+            // name = "value"
             rule("\(secretName)[A-Za-z0-9_-]{0,40}[\"']?\\s{0,4}[:=]\\s{0,4}[\"']"
                  + "\(looksLikeSecret(quotedValue))(\(quotedValue){12,})[\"']",
                  group: 1, options: [.caseInsensitive]),
-            // NAME=value, the .env and shell form. Case-sensitive on purpose: see the type's
-            // doc comment.
+            // NAME=value (.env). Case-sensitive on purpose: lowercase is how code looks.
             rule("(?<![A-Za-z0-9_])[A-Z0-9_]{0,40}(?:API_?KEY|SECRET|TOKEN|PASSWORD|PASSWD)[A-Z0-9_]{0,40}="
                  + "\(looksLikeSecret(bareValue))(\(bareValue){12,})",
                  group: 1),
@@ -124,7 +106,7 @@ public enum SecretDetector {
             rule("[?&][A-Za-z0-9_.-]{0,40}(?:\(secretName)|signature)[A-Za-z0-9_-]{0,40}="
                  + "\(looksLikeSecret("[A-Za-z0-9_+/=~%.-]"))([A-Za-z0-9_+/=~%.-]{12,})",
                  group: 1, options: [.caseInsensitive]),
-            // A run of 15 or 16 digits, optionally grouped; `isCardNumber` then checks it.
+            // 15 or 16 digits, optionally grouped; checked by `isCardNumber`.
             rule("(?<![A-Za-z0-9])(?<![0-9][ -])(?:[0-9][ -]?){14,15}[0-9](?![A-Za-z0-9])(?![ -]?[0-9])",
                  style: .card),
         ]
@@ -136,8 +118,7 @@ public enum SecretDetector {
         let scanRange = NSRange(location: 0, length: min(source.length, scanLimit))
         var changed = false
 
-        // Every rule runs against the original text; the masks are then laid over each
-        // other, so where two rules overlap a character shows only if both leave it visible.
+        // Rules run on the original text; overlapping masks combine.
         for rule in rules {
             for match in rule.regex.matches(in: text, options: [], range: scanRange) {
                 let range = match.range(at: rule.group)
@@ -168,8 +149,7 @@ public enum SecretDetector {
     private static func isDigit(_ unit: unichar) -> Bool { unit >= 48 && unit <= 57 }
     private static func isLineBreak(_ unit: unichar) -> Bool { unit == 10 || unit == 13 }
 
-    /// A payment card number: a known issuer prefix for its length, and a valid Luhn
-    /// checksum. Without the prefix check one random 16-digit number in ten would pass.
+    /// A known issuer prefix plus a valid Luhn checksum.
     private static func isCardNumber(_ units: [unichar]) -> Bool {
         let digits = units.map { Int($0) - 48 }
         let firstTwo = digits[0] * 10 + digits[1]

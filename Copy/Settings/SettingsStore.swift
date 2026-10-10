@@ -89,13 +89,12 @@ enum RetentionPeriod: String, CaseIterable {
     static let sliderOrder: [RetentionPeriod] = [.day, .week, .month, .threeMonths, .unlimited]
 }
 
-/// How long an item that contains a secret (an API key, token, password or card number,
-/// per `SecretDetector`) is kept after it is copied. Favorites and pinboard items are
-/// never deleted, the same promise `RetentionPeriod` makes.
+/// How long an item containing a secret is kept after it is copied. Favorites and
+/// pinboard items are never deleted.
 enum SecretLifetime: String, CaseIterable, Identifiable {
     case never
     #if DEBUG
-    /// Debug builds only: short enough to watch a deletion happen while testing.
+    /// Debug only, for testing.
     case minute
     #endif
     case hour
@@ -106,7 +105,7 @@ enum SecretLifetime: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    /// How long after it is copied a secret is deleted; `nil` keeps it.
+    /// `nil` keeps it forever.
     var interval: TimeInterval? {
         switch self {
         case .never: return nil
@@ -226,10 +225,8 @@ final class SettingsStore {
     }
     @ObservationIgnored var onFloatingShelfChange: ((Bool) -> Void)?
 
-    /// Shows API keys, tokens, passwords and card numbers masked on cards, previews and
-    /// titles (see `SecretDetector`). On by default. Display only: the stored item and
-    /// what gets pasted are the real value. `onHideSecretsChange` pushes it to the paste
-    /// stack, which has no view of this store.
+    /// Masks secrets on cards, previews and titles (`SecretDetector`). Display only: the
+    /// stored and pasted text is unchanged.
     var hideSecrets: Bool {
         didSet {
             guard hideSecrets != oldValue else { return }
@@ -239,9 +236,7 @@ final class SettingsStore {
     }
     @ObservationIgnored var onHideSecretsChange: ((Bool) -> Void)?
 
-    /// When items that contain a secret are deleted. `.never` by default: nothing is
-    /// removed unless the user asks for it. `onSecretLifetimeChange` lets the coordinator
-    /// apply a new choice at once instead of at the next scheduled check.
+    /// When items containing a secret are deleted. `.never` by default.
     var secretLifetime: SecretLifetime {
         didSet {
             guard secretLifetime != oldValue else { return }
